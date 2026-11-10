@@ -352,3 +352,17 @@ export function questionHudLayout(w, h, { items = 4 } = {}) {
     labelBottom: hudTop + HUD_LAYOUT.labelBand,
   };
 }
+
+
+export function playHint(text) {
+  const node = el("div", { class: "play-hint", text, role: "status" });
+  let gone = false;
+  node.dismiss = () => {
+    if (gone) return;
+    gone = true;
+    node.classList.add("gone");
+    setTimeout(() => node.remove(), 400);
+  };
+  setTimeout(() => node.dismiss(), 8000);
+  return node;
+}

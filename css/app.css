@@ -408,6 +408,29 @@ button, input, textarea, select { font-family: inherit; }
 .bead-hundred { width: 120px; height: 120px; background: repeating-linear-gradient(#e8b83a, #e8b83a 10px, #c99216 10px, #c99216 12px); }
 .bead-thousand { width: 88px; height: 88px; background: linear-gradient(135deg, #f5c84c, #8a5a10); transform: perspective(200px) rotateX(18deg) rotateY(-18deg); box-shadow: 10px 10px 0 #6d480c; }
 
+.play-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 168px;
+  transform: translateX(-50%);
+  z-index: 8;
+  pointer-events: none;
+  max-width: min(560px, 90%);
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: rgba(7, 16, 24, 0.86);
+  color: var(--cream);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: var(--shadow);
+  animation: fadein 0.2s ease;
+}
+.play-hint.gone { opacity: 0; transition: opacity 0.35s ease; }
+@media (orientation: landscape) {
+  .play-hint { bottom: 108px; font-size: 16px; }
+}
+
 .toast {
   position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%);
   background: var(--panel-solid); color: var(--cream);

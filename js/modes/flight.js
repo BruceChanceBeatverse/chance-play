@@ -1,7 +1,7 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
 import {
-  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, finishMode,
+  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, finishMode, playHint,
 } from "../ui.js";
 import {
   airportByCode, routeDistanceKm,
@@ -14,6 +14,17 @@ import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, draw
 import { shouldShowFlightPicker, resolveTrip, renderTripPicker, switchRouteButton, flightAssumptionCopy } from "../pickers.js";
 
 const CRUISE_KMH = 850; // ASSUMPTION: typical jet cruise, same as the plane racer.
+
+/** Watchable play duration for the full route (not real flight time). */
+export const FLIGHT_PLAY_SECONDS = 28;
+
+/** Advance the plane when it is not being dragged and no question is holding it. */
+export function autoFlightProgress(prev, dtSec, { dragging = false, frozen = false } = {}) {
+  if (dragging || frozen) return prev;
+  const dt = Math.max(0, Math.min(0.05, dtSec));
+  return Math.min(1, prev + dt / FLIGHT_PLAY_SECONDS);
+}
+
 
 function tripOf(id) {
   const trips = store.get().trips;
@@ -117,9 +128,19 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     return best / (xy.length - 1);
   }
 
-  let raf = 0, running = true;
-  const draw = () => {
+  let raf = 0, running = true, lastTs = 0;
+  const hint = playHint("飞机会自己飞。你也可以用手拉它。");
+  s.append(hint);
+  const draw = (now) => {
     if (!running) return;
+    if (!lastTs) lastTs = now || performance.now();
+    const ts = now || performance.now();
+    const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
+    lastTs = ts;
+    if (!dragging && !frozen && progress < 1) {
+      progress = autoFlightProgress(progress, dt, { dragging, frozen });
+      maybeAsk();
+    }
     const { ctx, w, h } = fitCanvas(canvas);
     const { view } = project(from.lon, from.lat, w, h);
     drawWater(ctx, w, h, view);
@@ -156,6 +177,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
   const unbind = bindDrag(canvas, {
     down(pt) {
       dragging = true;
+      hint.dismiss();
       const { width: w, height: h } = canvas.getBoundingClientRect();
       progress = nearestProgress(pt.x, pt.y, w, h);
     },
@@ -265,8 +287,8 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
   }
 
   talk(firstPlay
-    ? "Chance，还记得我们飞去东京吗？用手指拖着飞机走，看四个数字一起变。"
-    : "把飞机拖到 " + to.city + "。看四个数字一起变。");
+    ? "Chance，还记得我们飞去东京吗？飞机会自己飞。你也可以用手拉它，看四个数字一起变。"
+    : "飞机会自己飞去" + to.city + "。你也可以用手拉它，看四个数字一起变。");
 
   s._cleanup = () => {
     running = false;

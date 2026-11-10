@@ -1,8 +1,19 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, finishMode, questionHudLayout, HUD_LAYOUT } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, finishMode, questionHudLayout, HUD_LAYOUT, playHint } from "../ui.js";
 import { hikeTempC, formatTemp, clamp } from "../geo.js";
 import { shouldShowHikePicker, resolveHike, renderHikePicker, switchRouteButton, FIRST_PLAY_HIKE_ID } from "../pickers.js";
+
+
+/** Watchable play duration for the full trail (not a real hike). */
+export const HIKE_PLAY_SECONDS = 24;
+
+/** Advance the walker when it is not being dragged and no question is holding it. */
+export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false } = {}) {
+  if (dragging || asked) return prev;
+  const dt = Math.max(0, Math.min(0.05, dtSec));
+  return Math.min(1, prev + dt / HIKE_PLAY_SECONDS);
+}
 
 export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = {}) {
   if (shouldShowHikePicker({ hikeId, firstPlay })) {
@@ -62,9 +73,19 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     return hikePathLayout(w, h, { minE, maxE, totalKm });
   }
 
-  let running = true, raf = 0;
-  const draw = () => {
+  let running = true, raf = 0, lastTs = 0;
+  const hint = playHint("小人会自己往前走。你也可以用手拉他。");
+  s.append(hint);
+  const draw = (now) => {
     if (!running) return;
+    if (!lastTs) lastTs = now || performance.now();
+    const ts = now || performance.now();
+    const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
+    lastTs = ts;
+    if (!dragging && !asked && t < 1) {
+      t = autoHikeProgress(t, dt, { dragging, asked });
+      maybeAsk();
+    }
     const { ctx, w, h } = fitCanvas(canvas);
     const sky = ctx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#5aa0d0");
@@ -127,7 +148,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   raf = requestAnimationFrame(draw);
 
   const unbind = bindDrag(canvas, {
-    down(pt) { dragging = true; seek(pt); },
+    down(pt) { dragging = true; hint.dismiss(); seek(pt); },
     move(pt) { if (dragging) seek(pt); },
     up() { dragging = false; maybeAsk(); },
   });
@@ -216,8 +237,8 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     s.append(box);
   }
 
-  if (level <= 1) talk("拖着小人沿山走。找出最高的地方。");
-  else talk("拖着小人走。看高度、距离、坡度和气温一起变。");
+  if (level <= 1) talk("小人会自己往前走。你也可以用手拉他，找出最高的地方。");
+  else talk("小人会自己往前走。你也可以用手拉他，看高度、距离、坡度和气温一起变。");
 
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); unbind(); };
   app.replaceChildren(s);
