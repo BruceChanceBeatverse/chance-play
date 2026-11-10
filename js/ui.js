@@ -1,0 +1,354 @@
+import { sfx, talk, stopTalk } from "./audio.js";
+import { store } from "./store.js";
+import { MODE_META, CARD_TEMPLATES } from "./data.js";
+import { paintCardArt } from "./art.js";
+
+export const root = () => document.getElementById("app");
+
+export function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
+    else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === "html") node.innerHTML = v;
+    else if (k === "text") node.textContent = v;
+    else node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    node.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return node;
+}
+
+export function clear(node) {
+  stopTalk();
+  node.replaceChildren();
+  return node;
+}
+
+export function iconBtn(symbol, title, onClick) {
+  return el("button", { class: "icon-btn", title, "aria-label": title, onClick: (e) => { sfx.tap(); onClick(e); } }, symbol);
+}
+
+export function topbar({ title, sub, onBack, extra } = {}) {
+  const bar = el("div", { class: "topbar" });
+  if (onBack) bar.append(iconBtn("←", "返回", onBack));
+  if (title) {
+    const chip = el("div", { class: "title-chip" }, title);
+    if (sub) chip.append(el("span", { class: "sub" }, sub));
+    bar.append(chip);
+  }
+  bar.append(el("div", { class: "spacer" }));
+  if (extra) bar.append(extra);
+  return bar;
+}
+
+export function hud(items) {
+  const box = el("div", { class: "hud" + (items.length === 3 ? " cols-3" : "") });
+  for (const it of items) {
+    const v = el("div", { class: "v" + (it.tone ? " " + it.tone : "") }, it.value);
+    box.append(el("div", { class: "stat" }, el("div", { class: "k" }, it.label), v));
+    it._valueEl = v;
+  }
+  box.update = (vals) => {
+    vals.forEach((v, i) => { if (items[i]?._valueEl) items[i]._valueEl.textContent = v; });
+  };
+  return box;
+}
+
+export function finishMode(onDone, goHome) {
+  if (typeof onDone === "function") onDone();
+  else goHome?.();
+}
+
+export function promptBox(title, body, choices, onPick, opts = {}) {
+  const dock = opts.dock ? " dock-" + opts.dock : " dock-bottom";
+  const compact = opts.compact ? " compact" : "";
+  const extra = opts.className ? " " + opts.className : "";
+  const box = el("div", { class: "prompt" + dock + compact + extra },
+    el("h2", { text: title }),
+    body ? el("p", { text: body }) : null,
+  );
+  if (choices && choices.length) {
+    const row = el("div", { class: "choices" });
+    for (const c of choices) {
+      const pictorial = Array.isArray(c.icons) && c.icons.length;
+      const content = pictorial
+        ? el("span", { class: "pictorial-row", "aria-hidden": "true" }, c.icons.join(" → "))
+        : ((c.icon ? c.icon + " " : "") + c.label);
+      row.append(el("button", {
+        class: "choice" + (c.kind ? " " + c.kind : "") + (pictorial ? " pictorial" : ""),
+        "aria-label": c.ariaLabel || c.label,
+        onClick: () => { sfx.tap(); onPick(c); },
+      }, content));
+    }
+    box.append(row);
+  }
+  return box;
+}
+
+export function toast(text, ms = 1800) {
+  document.querySelectorAll(".toast").forEach((n) => n.remove());
+  const t = el("div", { class: "toast", text });
+  root().append(t);
+  setTimeout(() => t.remove(), ms);
+}
+
+const ABSTRACT_CARDS = new Set(["c-mid", "c-times10"]);
+
+export function maybeDropCard(mode) {
+  const owned = new Set(store.get().cards.map((c) => c.id));
+  const pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
+  if (!pool.length) return null;
+  // Occasional surprise, never promised. ~35% after a reveal.
+  if (Math.random() > 0.35) return null;
+  const personal = pool.filter((c) => !ABSTRACT_CARDS.has(c.id));
+  // First card the child ever gets should be a personal world fact.
+  let t;
+  if (store.get().cards.length === 0) {
+    const anyPersonal = CARD_TEMPLATES.filter((c) => !ABSTRACT_CARDS.has(c.id) && !owned.has(c.id));
+    const preferMode = personal.length ? personal : anyPersonal;
+    t = preferMode[0] || pool[0];
+  } else {
+    const src = personal.length ? personal : pool;
+    t = src[Math.floor(Math.random() * src.length)];
+  }
+  const added = store.addCard(t);
+  if (!added) return null;
+  sfx.card();
+  return t;
+}
+
+export function showCard(template, onDone) {
+  const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
+  const card = el("div", { class: "card-drop" },
+    art,
+    el("div", { class: "k" }, "一张世界卡"),
+    el("div", { class: "t" }, template.title),
+    el("div", { class: "v" }, template.value),
+    el("p", { style: { color: "var(--muted)" }, text: "点一下收好" }),
+  );
+  const wrap = el("div", { class: "reveal", onClick: () => { wrap.remove(); onDone?.(); } }, card);
+  root().append(wrap);
+  // Paint after layout so the canvas has a real size.
+  requestAnimationFrame(() => paintCardArt(art, template));
+  talk("一张世界卡。" + template.title + "，" + template.value);
+}
+
+export function afterReveal(mode, onDone) {
+  const card = maybeDropCard(mode);
+  if (card) showCard(card, onDone);
+  else onDone?.();
+}
+
+export function fitCanvas(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = canvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width * dpr));
+  const h = Math.max(1, Math.round(r.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w; canvas.height = h;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: r.width, h: r.height, dpr };
+}
+
+export function bindDrag(elOrCanvas, handlers) {
+  const target = elOrCanvas;
+  const pt = (e) => {
+    const t = e.touches ? e.touches[0] || e.changedTouches[0] : e;
+    const r = target.getBoundingClientRect();
+    if (!t || !Number.isFinite(t.clientX)) return { x: NaN, y: NaN, id: t && t.identifier };
+    return { x: t.clientX - r.left, y: t.clientY - r.top, id: t.identifier };
+  };
+  let dragging = false;
+  const onDown = (e) => {
+    e.preventDefault();
+    const p0 = pt(e);
+    if (!Number.isFinite(p0.x)) return;
+    dragging = true;
+    handlers.down?.(p0, e);
+  };
+  const onMove = (e) => {
+    if (!dragging && !e.touches) return;
+    if (e.cancelable) e.preventDefault();
+    const p0 = pt(e);
+    if (!Number.isFinite(p0.x)) return;
+    handlers.move?.(p0, e);
+  };
+  const onUp = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const p0 = pt(e);
+    handlers.up?.(p0, e);
+  };
+  target.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  return () => {
+    target.removeEventListener("pointerdown", onDown);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+  };
+}
+
+export function bindPinch(el, onScale) {
+  const pointers = new Map();
+  let lastDist = 0;
+  const dist = () => {
+    const pts = [...pointers.values()];
+    if (pts.length < 2) return 0;
+    const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+    return Math.hypot(dx, dy);
+  };
+  const pos = (e) => {
+    const r = el.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const down = (e) => { el.setPointerCapture?.(e.pointerId); pointers.set(e.pointerId, pos(e)); lastDist = dist(); };
+  const move = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, pos(e));
+    if (pointers.size === 2) {
+      const d = dist();
+      if (lastDist) onScale(d / lastDist, e);
+      lastDist = d;
+    }
+  };
+  const up = (e) => { pointers.delete(e.pointerId); lastDist = dist(); };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointermove", move);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+  const onWheel = (e) => {
+    e.preventDefault();
+    // Honour wheel magnitude so a Playwright deltaY of a few hundred
+    // actually crosses layers (100 steps, mountain, Shanghai, Tokyo…).
+    const mag = Math.max(1, Math.min(6, Math.abs(e.deltaY) / 80));
+    onScale(e.deltaY < 0 ? Math.pow(1.6, mag) : Math.pow(1 / 1.6, mag), e);
+  };
+  el.addEventListener("wheel", onWheel, { passive: false });
+  return () => {
+    el.removeEventListener("pointerdown", down);
+    el.removeEventListener("pointermove", move);
+    el.removeEventListener("pointerup", up);
+    el.removeEventListener("pointercancel", up);
+    el.removeEventListener("wheel", onWheel);
+  };
+}
+
+export function modeGlyph(id) {
+  return {
+    flight: "✈️", race: "🏁", hike: "⛰️", zoom: "🔎",
+    numberline: "📏", compare: "⚖️", elevator: "🛗", cosmos: "🌌",
+  }[id] || "⭐";
+}
+
+export function screen() {
+  return el("section", { class: "screen" });
+}
+
+let parentTaps = [];
+export function secretParentHotspot(node, goParent) {
+  // Five quick taps on the top-right corner (or this node) open the parent view.
+  node.style.pointerEvents = "auto";
+  node.addEventListener("click", () => {
+    const now = Date.now();
+    parentTaps = parentTaps.filter((t) => now - t < 2500);
+    parentTaps.push(now);
+    if (parentTaps.length >= 5) {
+      parentTaps = [];
+      goParent();
+    }
+  });
+}
+
+export function starfield(canvas, { shooting = true } = {}) {
+  let stars = [];
+  let raf = 0;
+  let running = true;
+  const resize = () => {
+    const { ctx, w, h } = fitCanvas(canvas);
+    const n = Math.min(220, Math.floor((w * h) / 9000));
+    stars = Array.from({ length: n }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random() * 1.4 + 0.3,
+      a: Math.random(),
+      s: 0.003 + Math.random() * 0.01,
+    }));
+    return { ctx, w, h };
+  };
+  let view = resize();
+  const onResize = () => { view = resize(); };
+  window.addEventListener("resize", onResize);
+  const tick = () => {
+    if (!running) return;
+    const { ctx, w, h } = view;
+    ctx.fillStyle = "#071018";
+    ctx.fillRect(0, 0, w, h);
+    // soft aurora
+    const g = ctx.createRadialGradient(w * 0.7, h * 0.2, 20, w * 0.5, h * 0.4, w * 0.8);
+    g.addColorStop(0, "rgba(50,120,150,0.18)");
+    g.addColorStop(1, "rgba(7,16,24,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    for (const s of stars) {
+      s.a += s.s;
+      const a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(s.a * 6));
+      ctx.fillStyle = `rgba(244,239,228,${a})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => {
+    running = false;
+    cancelAnimationFrame(raf);
+    window.removeEventListener("resize", onResize);
+  };
+}
+
+export { MODE_META };
+
+
+/** CSS-pixel question-card vs HUD geometry. Portrait uses a 2-column HUD
+ *  when width is at most 900 (iPad Pro 11 portrait is 834). The halfway
+ *  question must leave the HUD, including the 「还要多久」 label, fully visible. */
+export const HUD_LAYOUT = {
+  bottom: 22,
+  statMinHeight: 92,
+  gap: 12,
+  promptBottomPortrait: 240,
+  promptBottomLandscape: 118,
+  twoColMaxWidth: 900,
+  labelBand: 18,
+};
+
+export function questionHudLayout(w, h, { items = 4 } = {}) {
+  const portrait = h > w;
+  const columns = (w <= HUD_LAYOUT.twoColMaxWidth && items >= 4) ? 2 : Math.min(items, 4);
+  const rows = Math.ceil(items / columns);
+  const hudHeight = rows * HUD_LAYOUT.statMinHeight + Math.max(0, rows - 1) * HUD_LAYOUT.gap;
+  const hudTop = h - HUD_LAYOUT.bottom - hudHeight;
+  const promptBottomOffset = portrait ? HUD_LAYOUT.promptBottomPortrait : HUD_LAYOUT.promptBottomLandscape;
+  const promptBottom = h - promptBottomOffset;
+  return {
+    portrait,
+    columns,
+    rows,
+    hudHeight,
+    hudTop,
+    promptBottom,
+    gap: hudTop - promptBottom,
+    labelBottom: hudTop + HUD_LAYOUT.labelBand,
+  };
+}
