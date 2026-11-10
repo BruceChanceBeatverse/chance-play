@@ -411,7 +411,8 @@ button, input, textarea, select { font-family: inherit; }
 .play-hint {
   position: absolute;
   left: 50%;
-  bottom: 168px;
+  /* Sit just above the two-row portrait HUD, not on top of the numbers. */
+  bottom: calc(var(--hud-bottom) + var(--hud-stat-min-height) * 2 + var(--hud-gap) + 16px);
   transform: translateX(-50%);
   z-index: 8;
   pointer-events: none;
@@ -428,7 +429,11 @@ button, input, textarea, select { font-family: inherit; }
 }
 .play-hint.gone { opacity: 0; transition: opacity 0.35s ease; }
 @media (orientation: landscape) {
-  .play-hint { bottom: 108px; font-size: 16px; }
+  /* Landscape HUD is a single row. */
+  .play-hint {
+    bottom: calc(var(--hud-bottom) + var(--hud-stat-min-height) + 14px);
+    font-size: 16px;
+  }
 }
 
 .toast {

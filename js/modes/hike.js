@@ -82,6 +82,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     const ts = now || performance.now();
     const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
     lastTs = ts;
+    if (asked) hint.dismiss();
     if (!dragging && !asked && t < 1) {
       t = autoHikeProgress(t, dt, { dragging, asked });
       maybeAsk();

@@ -137,6 +137,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     const ts = now || performance.now();
     const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
     lastTs = ts;
+    if (frozen) hint.dismiss();
     if (!dragging && !frozen && progress < 1) {
       progress = autoFlightProgress(progress, dt, { dragging, frozen });
       maybeAsk();
