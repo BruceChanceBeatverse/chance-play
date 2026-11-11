@@ -1,6 +1,6 @@
 import { sfx, talk, stopTalk } from "./audio.js";
 import { store } from "./store.js";
-import { MODE_META, CARD_TEMPLATES } from "./data.js";
+import { MODE_META, CARD_TEMPLATES, resolveCard } from "./data.js";
 import { paintCardArt } from "./art.js";
 
 export const root = () => document.getElementById("app");
@@ -123,21 +123,27 @@ export function maybeDropCard(mode, opts = {}) {
   return t;
 }
 
-export function showCard(template, onDone) {
+export function cardFacePair(template) {
+  const t = resolveCard(template) || template || {};
   const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
   const front = el("div", { class: "card-face card-front" },
     art,
     el("div", { class: "k" }, "一张世界卡"),
-    el("div", { class: "t" }, template.title),
-    el("div", { class: "v" }, template.value),
-    el("p", { style: { color: "var(--muted)" }, text: "点卡片翻一面" }),
+    el("div", { class: "t" }, t.title || ""),
+    el("div", { class: "v" }, t.value || ""),
+    el("p", { class: "card-hint", text: "点卡片翻一面" }),
   );
   const back = el("div", { class: "card-face card-back" },
-    el("div", { class: "k" }, "翻过来了"),
-    el("div", { class: "t" }, template.title),
-    el("div", { class: "v" }, template.value),
-    el("p", { style: { color: "var(--muted)" }, text: template.note || "这是你世界里的一个数。再点可以翻回去。" }),
+    el("div", { class: "k" }, "背面"),
+    el("div", { class: "t" }, t.backTitle || "再看一眼"),
+    el("p", { class: "card-back-note", text: t.back || "这是你世界里的一个数。再点可以翻回去。" }),
   );
+  return { art, front, back, template: t };
+}
+
+export function showCard(template, onDone) {
+  const { art, front, back, template: t } = cardFacePair(template);
+  template = t;
   const card = el("div", { class: "card-drop flippable", "aria-label": "点卡片翻面" },
     el("div", { class: "card-inner" }, front, back),
   );

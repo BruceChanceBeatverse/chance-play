@@ -40,6 +40,8 @@ function go(name, arg) {
     if (arg && typeof arg === "object") {
       if (arg.tripId) opts.tripId = arg.tripId;
       if (arg.hikeId) opts.hikeId = arg.hikeId;
+      if (arg.trackId) opts.trackId = arg.trackId;
+      if (arg.allRacers) opts.allRacers = arg.allRacers;
     }
     if (id === "flight") renderFlight(app, opts);
     else if (id === "race") renderRace(app, opts);
@@ -66,7 +68,24 @@ function boot() {
 
   // Register the service worker for offline. Same-origin only, no external fetches.
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    const RELOAD_KEY = "chance-sw-reloaded";
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      try {
+        if (sessionStorage.getItem(RELOAD_KEY) === "1") return;
+        sessionStorage.setItem(RELOAD_KEY, "1");
+      } catch {}
+      refreshing = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register("./sw.js").then((reg) => {
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    }).catch(() => {});
+    // Allow a later deploy to reload once more, after this page has settled.
+    setTimeout(() => {
+      try { sessionStorage.removeItem(RELOAD_KEY); } catch {}
+    }, 4000);
   }
 
   // Global first-gesture unlock if the child skipped the welcome somehow.

@@ -54,6 +54,13 @@ export function raceChildCopy(track, racers) {
   return { dist, speeds, guessNote };
 }
 
+/** Name the route just raced — never say Tokyo after a Paris race. */
+export function raceImpossibleNote(track) {
+  if (!track || (track.id !== "tokyo" && track.id !== "paris")) return "";
+  const dest = track.id === "paris" ? "巴黎" : "东京";
+  return " 这也是为什么骑自行车其实去不了" + dest + "。";
+}
+
 export function renderRace(app, { goHome, onDone, trackId, allRacers = false } = {}) {
   const s = screen();
   s.classList.add("mode-race");
@@ -243,19 +250,21 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false } =
       : "按直线距离、不停歇的固定速度来算。真正路上没有这样一条直路。";
     const box = racePrompt(
       winner.name + " 最先到，用了 " + formatHours(winner.hours),
-      note + (track.id === "tokyo" || track.id === "paris" ? " 这也是为什么骑自行车其实去不了东京。" : ""),
+      note + raceImpossibleNote(track),
       [{ label: "看好了", kind: "ok" }],
       () => {
         box.remove();
         afterReveal("race", () => offerContinue(s, {
           title: "再比一次？",
-          body: "可以加上飞机，或者骑车去东京看看要几天。",
+          body: track.id === "paris"
+            ? "可以再比一次，或者看看骑车去巴黎要多久。"
+            : "可以加上飞机，或者骑车去东京看看要几天。",
           tone: "ok",
           goHome,
           actions: [
             { label: "加上飞机再比", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
-            { label: "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: "tokyo", allRacers: true }) },
-            { label: "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: "paris", allRacers: true }) },
+            { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", allRacers: true }) },
+            { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
           ],
         }));
       },

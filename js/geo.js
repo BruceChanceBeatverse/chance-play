@@ -204,6 +204,13 @@ export function formatKm(km, digits = 0) {
 
 export function formatHours(h) {
   if (!Number.isFinite(h) || h < 0) return "—";
+  const secs = h * 3600;
+  // A 2 km hop at jet speed is ~8 seconds; rounding that to minutes used to print "0 分钟".
+  if (secs < 90) {
+    const s = Math.round(secs);
+    if (s === 0) return h > 0 ? "不到 1 秒" : "0 秒";
+    return s + " 秒";
+  }
   if (h < 1) return Math.round(h * 60) + " 分钟";
   if (h < 48) {
     const hours = Math.floor(h);

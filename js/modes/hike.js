@@ -49,6 +49,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   let asked = false;
   let celebrated = false;
   let quizKind = null;
+  const askedKinds = new Set();
   const officialPeak = hikeDisplayPeakM(hike);
 
   const canvas = el("canvas", { class: "fill", "aria-label": "爬山剖面" });
@@ -179,8 +180,8 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   function maybeAsk() {
     if (asked) return;
     if (level <= 1 && t > 0.2) askPeak();
-    else if (level === 2 && t > 0.45) askMid();
-    else if (level >= 3 && t > 0.3) askTemp();
+    else if (level === 2 && t > 0.45 && !askedKinds.has("mid")) askMid();
+    else if (level >= 3 && t > 0.3 && !askedKinds.has("temp")) askTemp();
   }
 
   function atSummit(here) {
@@ -257,6 +258,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   function askMid() {
     asked = true;
     quizKind = "mid";
+    askedKinds.add("mid");
     const mid = at(0.5);
     const box = promptBox("走到一半，大约有多高？", "先猜，不要看角落里的数。", shuffle([
       { label: Math.round(mid.elev) + " 米", ok: true },
@@ -290,6 +292,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   function askTemp() {
     asked = true;
     quizKind = "temp";
+    askedKinds.add("temp");
     const box = promptBox("爬得越高，气温会怎样？", "先想一想，不要看角落里的温度。", [
       { label: "更冷", ok: true },
       { label: "更暖" },

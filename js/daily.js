@@ -1,6 +1,6 @@
 import { store } from "./store.js";
 import { talk, unlockAudio, sfx, stopTalk } from "./audio.js";
-import { el, screen, toast, fitCanvas, bindCardFlip } from "./ui.js";
+import { el, screen, toast, fitCanvas, bindCardFlip, cardFacePair } from "./ui.js";
 import { fillSky, drawSoftClouds, paintCardArt } from "./art.js";
 import { TOMORROW_QUESTIONS, SESSION_MINUTES, SESSION_WINDDOWN_MIN } from "./data.js";
 
@@ -121,24 +121,13 @@ export function renderCards(app, go) {
   const cards = store.get().cards;
   if (!cards.length) bag.append(el("p", { text: "还没有卡片。去飞一趟，也许会掉下来。" }));
   for (const c of cards) {
-    const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
-    const front = el("div", { class: "card-face card-front" },
-      art,
-      el("div", { class: "t" }, c.title),
-      el("div", { class: "v" }, c.value),
-    );
-    const back = el("div", { class: "card-face card-back" },
-      el("div", { class: "k" }, "翻过来了"),
-      el("div", { class: "t" }, c.title),
-      el("div", { class: "v" }, c.value),
-      el("p", { text: "这是你世界里的一个数。" }),
-    );
+    const { art, front, back, template } = cardFacePair(c);
     const card = el("div", { class: "card-drop flippable", style: { width: "100%", aspectRatio: "4/3", animation: "none" } },
       el("div", { class: "card-inner" }, front, back),
     );
     bindCardFlip(card);
     bag.append(card);
-    requestAnimationFrame(() => paintCardArt(art, c));
+    requestAnimationFrame(() => paintCardArt(art, template));
   }
   let running = true, raf = 0, t0 = performance.now();
   const tick = (now) => {

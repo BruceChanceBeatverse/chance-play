@@ -365,6 +365,33 @@ export function drawGlobe(ctx, cx, cy, R, { lonC = 125, latC = 28, route = null 
 }
 
 /** Paint a small illustrated scene onto a world-card canvas. */
+/** Which picture a world card should use — never fall back to the Tokyo flight map. */
+export function cardArtKind(id) {
+  switch (id) {
+    case "c-tokyo": return "route-hnd";
+    case "c-paris":
+    case "c-paris-flight": return "route-cdg";
+    case "c-route": return "halfway-line";
+    case "c-lapse": return "sky-alt";
+    case "c-bike": return "racer-bike";
+    case "c-plane": return "racer-plane";
+    case "c-hsr": return "hsr";
+    case "c-sheshan": return "hill";
+    case "c-huangshan": return "huangshan";
+    case "c-fuji": return "fuji";
+    case "c-earth": return "earth";
+    case "c-moon": return "moon";
+    case "c-sun": return "sun";
+    case "c-ly": return "light-year";
+    case "c-times10": return "beads";
+    case "c-mid": return "number-mid";
+    case "c-planck": return "planck";
+    case "c-universe": return "universe";
+    case "c-ant": return "ant";
+    default: return "generic";
+  }
+}
+
 export function paintCardArt(canvas, template = {}) {
   if (!canvas) return;
   const dpr = Math.min((typeof window !== "undefined" && window.devicePixelRatio) || 1, 2);
@@ -376,19 +403,27 @@ export function paintCardArt(canvas, template = {}) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const id = template.id || "";
-  if (id === "c-tokyo" || id === "c-route") paintRouteThumb(ctx, w, h, "PVG", "HND", { lon0: 110, lon1: 150, lat0: 20, lat1: 46 });
-  else if (id === "c-paris") paintRouteThumb(ctx, w, h, "PVG", "CDG", { lon0: 0, lon1: 140, lat0: 10, lat1: 60 });
-  else if (id === "c-lapse") paintSkyAlt(ctx, w, h);
-  else if (id === "c-bike") paintRacerThumb(ctx, w, h, "🚲", "#7dffb3");
-  else if (id === "c-plane") paintRacerThumb(ctx, w, h, "✈️", "#5ce1e6");
-  else if (id === "c-sheshan") paintHillThumb(ctx, w, h);
-  else if (id === "c-earth") { fillSky(ctx, w, h); drawGlobe(ctx, w / 2, h / 2 + 6, Math.min(w, h) * 0.38, { lonC: 125, latC: 28 }); }
-  else if (id === "c-moon") paintMoonThumb(ctx, w, h);
-  else if (id === "c-sun" || id === "c-ly") { fillSky(ctx, w, h, { top: "#1a1020", mid: "#2a1810", bot: "#071018" }); drawSun(ctx, w / 2, h / 2, Math.min(w, h) * 0.28); }
-  else if (id === "c-times10") paintBeadsThumb(ctx, w, h);
-  else if (id === "c-mid") paintLineThumb(ctx, w, h);
-  else paintRouteThumb(ctx, w, h, "PVG", "HND", { lon0: 110, lon1: 150, lat0: 20, lat1: 46 });
+  const kind = cardArtKind(template.id || "");
+  if (kind === "route-hnd") paintRouteThumb(ctx, w, h, "PVG", "HND", { lon0: 110, lon1: 150, lat0: 20, lat1: 46 });
+  else if (kind === "route-cdg") paintRouteThumb(ctx, w, h, "PVG", "CDG", { lon0: 0, lon1: 140, lat0: 10, lat1: 60 });
+  else if (kind === "halfway-line") paintHalfwayThumb(ctx, w, h);
+  else if (kind === "sky-alt") paintSkyAlt(ctx, w, h);
+  else if (kind === "racer-bike") paintRacerThumb(ctx, w, h, "🚲", "#7dffb3");
+  else if (kind === "racer-plane") paintRacerThumb(ctx, w, h, "✈️", "#5ce1e6");
+  else if (kind === "hsr") paintHsrThumb(ctx, w, h);
+  else if (kind === "hill") paintHillThumb(ctx, w, h);
+  else if (kind === "huangshan") paintHuangshanThumb(ctx, w, h);
+  else if (kind === "fuji") paintFujiThumb(ctx, w, h);
+  else if (kind === "earth") { fillSky(ctx, w, h); drawGlobe(ctx, w / 2, h / 2 + 6, Math.min(w, h) * 0.38, { lonC: 125, latC: 28 }); }
+  else if (kind === "moon") paintMoonThumb(ctx, w, h);
+  else if (kind === "sun") { fillSky(ctx, w, h, { top: "#1a1020", mid: "#2a1810", bot: "#071018" }); drawSun(ctx, w / 2, h / 2, Math.min(w, h) * 0.28); }
+  else if (kind === "light-year") paintLightYearThumb(ctx, w, h);
+  else if (kind === "beads") paintBeadsThumb(ctx, w, h);
+  else if (kind === "number-mid") paintLineThumb(ctx, w, h);
+  else if (kind === "planck") paintPlanckThumb(ctx, w, h);
+  else if (kind === "universe") paintUniverseThumb(ctx, w, h);
+  else if (kind === "ant") paintAntThumb(ctx, w, h);
+  else paintGenericThumb(ctx, w, h);
 }
 
 export function paintRouteThumb(ctx, w, h, fromCode, toCode, view) {
@@ -489,6 +524,169 @@ function paintLineThumb(ctx, w, h) {
   ctx.fillText("0", 24, h * 0.6 + 22);
   ctx.fillText("50", w / 2, h * 0.6 + 22);
   ctx.fillText("100", w - 28, h * 0.6 + 22);
+}
+
+function paintHalfwayThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#173a5c", mid: "#0c2740", bot: "#0a3a30" });
+  ctx.strokeStyle = "#f5c84c";
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(20, h * 0.55); ctx.lineTo(w - 20, h * 0.55); ctx.stroke();
+  ctx.fillStyle = "#f4efe4";
+  ctx.font = "700 14px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("上海", 36, h * 0.55 + 24);
+  ctx.fillStyle = "#5ce1e6";
+  ctx.beginPath(); ctx.arc(w / 2, h * 0.55, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#f5c84c";
+  ctx.fillText("870 公里", w / 2, h * 0.55 - 16);
+  ctx.fillStyle = "#f4efe4";
+  ctx.fillText("东京", w - 36, h * 0.55 + 24);
+}
+
+function paintHsrThumb(ctx, w, h) {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, "#1a3350");
+  g.addColorStop(1, "#0a1a12");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(244,239,228,0.55)";
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(8, h * 0.72); ctx.lineTo(w - 8, h * 0.62); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, h * 0.82); ctx.lineTo(w - 8, h * 0.72); ctx.stroke();
+  ctx.fillStyle = "#5ce1e6";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.22, h * 0.62);
+  ctx.lineTo(w * 0.78, h * 0.5);
+  ctx.lineTo(w * 0.82, h * 0.62);
+  ctx.lineTo(w * 0.2, h * 0.74);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#143a5c";
+  for (let i = 0; i < 5; i++) ctx.fillRect(w * 0.32 + i * 18, h * 0.56, 10, 10);
+  ctx.fillStyle = "#f4efe4";
+  ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("高铁", w / 2, h * 0.28);
+}
+
+function paintHuangshanThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#6aa0c8", mid: "#c5d8c4", bot: "#2a4a3a" });
+  ctx.fillStyle = "#2a4a38";
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.lineTo(w * 0.18, h * 0.48);
+  ctx.lineTo(w * 0.32, h * 0.22);
+  ctx.lineTo(w * 0.42, h * 0.4);
+  ctx.lineTo(w * 0.55, h * 0.16);
+  ctx.lineTo(w * 0.68, h * 0.38);
+  ctx.lineTo(w * 0.86, h * 0.3);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#3d6a50";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.08, h);
+  ctx.lineTo(w * 0.28, h * 0.55);
+  ctx.lineTo(w * 0.5, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#d8e8e0";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.5, h * 0.16);
+  ctx.lineTo(w * 0.55, h * 0.08);
+  ctx.lineTo(w * 0.62, h * 0.2);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function paintFujiThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#6b9ad4", mid: "#d7e6f4", bot: "#3a6a4a" });
+  ctx.fillStyle = "#2d4a3c";
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.lineTo(w * 0.5, h * 0.12);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#f4efe4";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.38, h * 0.34);
+  ctx.lineTo(w * 0.5, h * 0.12);
+  ctx.lineTo(w * 0.62, h * 0.34);
+  ctx.quadraticCurveTo(w * 0.5, h * 0.28, w * 0.38, h * 0.34);
+  ctx.fill();
+}
+
+function paintLightYearThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#120818", mid: "#1a1028", bot: "#071018" });
+  ctx.strokeStyle = "rgba(245,200,76,0.7)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([6, 8]);
+  ctx.beginPath(); ctx.moveTo(16, h * 0.55); ctx.lineTo(w - 16, h * 0.55); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#fff4c2";
+  ctx.shadowColor = "#f5c84c";
+  ctx.shadowBlur = 16;
+  ctx.beginPath(); ctx.arc(w * 0.22, h * 0.55, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#ff7a59";
+  ctx.beginPath(); ctx.arc(w * 0.82, h * 0.55, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#f4efe4";
+  ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("1 光年", w / 2, h * 0.32);
+}
+
+function paintPlanckThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#08060e", mid: "#12081a", bot: "#050308" });
+  ctx.fillStyle = "#f5c84c";
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(92,225,230,0.35)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.28, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "rgba(244,239,228,0.8)";
+  ctx.font = "700 14px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("很小很小", w / 2, h * 0.82);
+}
+
+function paintUniverseThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#050814", mid: "#101830", bot: "#071018" });
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = "rgba(244,239,228," + (0.25 + (i % 5) * 0.12) + ")";
+    ctx.beginPath();
+    ctx.arc((i * 47) % w, (i * 29) % h, 1.2 + (i % 3) * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(92,225,230,0.45)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.36, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#f4efe4";
+  ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("宇宙", w / 2, h / 2 + 6);
+}
+
+function paintAntThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#3a5a38", mid: "#1e3a24", bot: "#102016" });
+  ctx.fillStyle = "#1a1208";
+  const x = w * 0.5, y = h * 0.55;
+  ctx.beginPath(); ctx.ellipse(x - 22, y, 12, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x, y, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 20, y - 2, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#1a1208";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 26, y - 6); ctx.lineTo(x + 38, y - 16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 26, y - 4); ctx.lineTo(x + 40, y - 8); ctx.stroke();
+}
+
+function paintGenericThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#1a2a40", mid: "#0c1a28", bot: "#071018" });
+  ctx.strokeStyle = "rgba(245,200,76,0.5)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.3, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#f5c84c";
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, 6, 0, Math.PI * 2); ctx.fill();
 }
 
 export function drawMoon(ctx, x, y, r) {

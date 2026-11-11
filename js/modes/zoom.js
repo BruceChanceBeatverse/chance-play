@@ -18,6 +18,17 @@ function mountainVisited(id) {
   return id === "mountain" || id === "sheshan" || id === "huangshan" || id === "fuji";
 }
 
+/** Log10 units per second while auto-cruising. ~11–12 seconds per decade, plus dwell. */
+export const ZOOM_CRUISE_RATE = 0.085;
+
+/** Familiar nearby stops may hop. Endpoints of the line must be walked. */
+export function zoomJumpStyle(id, { fromStart = false } = {}) {
+  if (fromStart) return "start-at";
+  if (id === "universe" || id === "planck") return "cruise";
+  if (id === "me" || id === "ant" || id === "sheshan" || id === "tokyo") return "hop";
+  return "cruise";
+}
+
 export function renderZoom(app, { goHome, onDone } = {}) {
   const s = screen();
   s.classList.add("mode-zoom");
@@ -34,10 +45,11 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   let holdPause = false;
   let resumeAt = 0;
   let cruiseDir = 1;
-  let dwellLeft = 1.6;
+  let dwellLeft = 2.8;
   let lastDwellId = "me";
   let lastSpokenId = "";
   let pointers = 0;
+  let cruiseGoal = null;
 
   const canvas = el("canvas", { class: "fill", "aria-label": "从普朗克长度到宇宙的尺度之旅" });
   s.append(canvas);
@@ -69,7 +81,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   const fullBtn = el("button", {}, "从头走");
   pauseBtn.addEventListener("click", () => toggleAuto());
   fullBtn.addEventListener("click", () => {
-    jumpTo("planck", false);
+    jumpTo("planck", false, { fromStart: true });
     cruiseDir = 1;
     auto = true;
     holdPause = false;
@@ -92,20 +104,34 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     else talk("先停在这里。");
   }
 
-  function jumpTo(id, speak) {
+  function jumpTo(id, speak, opts = {}) {
     const stop = stops.find((l) => l.id === id);
     if (!stop) return;
-    target = clamp(log10(stop.metres), minL, maxL);
+    const destLog = clamp(log10(stop.metres), minL, maxL);
+    const style = zoomJumpStyle(id, opts);
     visited.add(id);
     if (mountainVisited(id)) visited.add("mountain");
-    lastDwellId = id;
-    dwellLeft = stop.familiar ? 7 : 4;
     auto = true;
     holdPause = false;
     pauseBtn.textContent = "暂停";
     sfx.tick();
-    if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
-    maybeAsk();
+    if (style === "start-at" || style === "hop") {
+      target = destLog;
+      if (style === "start-at") logS = destLog;
+      cruiseGoal = null;
+      lastDwellId = id;
+      dwellLeft = stop.familiar ? 7 : 4;
+      if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
+    } else {
+      // Walk the spine. Tapping 宇宙 must not teleport past the decades in between.
+      cruiseDir = destLog >= logS ? 1 : -1;
+      cruiseGoal = destLog;
+      dwellLeft = 0;
+      asked = false;
+      s.querySelectorAll(".prompt").forEach((n) => n.remove());
+      if (speak) talk("我们一站一站走到" + stop.name + "，途中会经过很多站，不会一下子跳过去。");
+    }
+    if (style !== "cruise") maybeAsk();
   }
 
   function nearest(ls) {
@@ -162,8 +188,14 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (auto && userIdle && !asked) {
       if (dwellLeft > 0) dwellLeft -= dt;
       else {
-        target = clamp(target + cruiseDir * 0.12 * dt, minL, maxL);
-        if (target >= maxL - 0.01 && cruiseDir === 1) {
+        target = clamp(target + cruiseDir * ZOOM_CRUISE_RATE * dt, minL, maxL);
+        if (cruiseGoal != null) {
+          if ((cruiseDir > 0 && target >= cruiseGoal - 0.01) || (cruiseDir < 0 && target <= cruiseGoal + 0.01)) {
+            target = cruiseGoal;
+            cruiseGoal = null;
+            dwellLeft = 8;
+          }
+        } else if (target >= maxL - 0.01 && cruiseDir === 1) {
           cruiseDir = -1;
           dwellLeft = 8;
           talk("已经到了能看到的宇宙这么大。现在往回走，一直走到最小。");
@@ -192,7 +224,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
 
     if (close && layer.id !== lastDwellId) {
       lastDwellId = layer.id;
-      dwellLeft = layer.familiar ? 7 : (layer.generated ? 2.6 : 5);
+      dwellLeft = layer.familiar ? 7.5 : (layer.generated ? 3.4 : 5.5);
       speakStop(layer);
       showLinger(layer);
     }
@@ -360,7 +392,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     talk("去巴黎比去东京，差几个 10 倍？");
   }
 
-  talk("从你的身高开始，尺度会自己往外走。两指也可以捏。想看最小，就点从头走。");
+  talk("从你的身高开始，尺度会自己一站一站往外走。想从最小走完全程，就点从头走。点宇宙也会一路走过去，不会跳到头。");
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); unPinch(); };
   app.replaceChildren(s);
   store.markModePlayed("zoom");

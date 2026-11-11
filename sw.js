@@ -1,6 +1,6 @@
 /* Offline cache. Precaches only same-origin files. No runtime requests
    to any other host — a missing file stays missing, we never "phone home". */
-const CACHE = "chance-scale-v15";
+const CACHE = "chance-scale-v16";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -48,6 +48,10 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) {
@@ -55,7 +59,29 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(Promise.resolve(new Response("", { status: 404 })));
     return;
   }
+  const dest = event.request.destination;
+  const isNavigate = event.request.mode === "navigate" || dest === "document";
+  const path = url.pathname;
+  const isCode = dest === "script" || dest === "style" || dest === "manifest"
+    || /\.(js|css|webmanifest)$/.test(path) || path.endsWith("/sw.js");
+  // Network-first for the page and JS/CSS so a new deploy shows up on the
+  // first load, without wiping localStorage progress. Images stay cache-first.
   event.respondWith((async () => {
+    if (isNavigate || isCode) {
+      try {
+        const fresh = await fetch(event.request, { cache: "no-store" });
+        if (fresh && fresh.ok && event.request.method === "GET") {
+          const cache = await caches.open(CACHE);
+          cache.put(event.request, fresh.clone());
+        }
+        return fresh;
+      } catch {
+        const cached = await caches.match(event.request, { ignoreSearch: true });
+        if (cached) return cached;
+        if (isNavigate) return caches.match("./index.html");
+        throw new Error("offline and uncached");
+      }
+    }
     const cached = await caches.match(event.request, { ignoreSearch: true });
     if (cached) return cached;
     try {
@@ -66,7 +92,6 @@ self.addEventListener("fetch", (event) => {
       }
       return fresh;
     } catch {
-      if (event.request.mode === "navigate") return caches.match("./index.html");
       throw new Error("offline and uncached");
     }
   })());

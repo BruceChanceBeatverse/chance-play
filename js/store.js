@@ -2,7 +2,7 @@
  * All child/parent data stays on this device (localStorage).
  * Nothing is uploaded. A manual JSON export/import is the only backup.
  */
-import { DEFAULT_PROFILE, DEFAULT_TRIPS, DEFAULT_RACERS, SAMPLE_HIKES, MODE_META } from "./data.js";
+import { DEFAULT_PROFILE, DEFAULT_TRIPS, DEFAULT_RACERS, SAMPLE_HIKES, MODE_META, resolveCard } from "./data.js";
 
 const KEY = "chance-scale-v1";
 const listeners = new Set();
@@ -75,6 +75,9 @@ function load() {
           merged.hikes.push({ ...pack, points: pack.points.map((p) => ({ ...p })) });
         }
       }
+    }
+    if (Array.isArray(merged.cards)) {
+      merged.cards = merged.cards.map((c) => resolveCard(c) || c);
     }
     return merged;
   } catch {

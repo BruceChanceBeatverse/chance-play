@@ -19,8 +19,17 @@ export function cosmosStartButtonSpec(phase) {
   if (phase === "arrived") {
     return { label: "再看一次", className: "pill light-replay", phase: "arrived" };
   }
+  if (phase === "playing") {
+    return { label: "暂停", className: "pill", phase: "playing" };
+  }
+  if (phase === "paused") {
+    return { label: "继续", className: "choice ok", phase: "paused" };
+  }
   return { label: "开始", className: "choice ok", phase: "idle" };
 }
+
+/** Light should already be on the way when 光速快递 opens. */
+export const COSMOS_LIGHT_STARTS_MOVING = true;
 
 export function applyCosmosStartButton(btn, phase) {
   const spec = cosmosStartButtonSpec(phase);
@@ -113,24 +122,47 @@ function renderLight(stage, onDone, goHome) {
   let t = 0, playing = false, done = false;
   const chips = el("div", { class: "bottom-bar", style: { justifyContent: "center" } });
   const startBtn = el("button", { id: "light-start", class: "choice ok", "aria-label": "开始" }, "开始");
-  applyCosmosStartButton(startBtn, "idle");
+  applyCosmosStartButton(startBtn, "playing");
   let finishedOnce = false;
+
+  function clearArrivalUi() {
+    stage.querySelectorAll(".prompt").forEach((n) => n.remove());
+  }
+
+  function startLight(reset) {
+    if (reset) t = 0;
+    playing = true;
+    done = false;
+    applyCosmosStartButton(startBtn, "playing");
+    sfx.whoosh();
+  }
+
   for (const d of dests) {
     chips.append(el("button", { class: "pill", onClick: () => {
-      dest = d; t = 0; playing = false; done = false;
-      applyCosmosStartButton(startBtn, finishedOnce ? "arrived" : "idle");
+      dest = d;
+      done = false;
+      // Switching destination must drop a leftover arrival dialog (e.g. the Sun card).
+      clearArrivalUi();
+      startLight(true);
       talk("光从" + d.name + "到地球，要 " + prettyTime(d.seconds) + "。");
     } }, d.name));
   }
-  const startRun = () => {
-    t = 0;
-    playing = true;
-    done = false;
-    sfx.whoosh();
+  const onStartBtn = () => {
+    if (playing) {
+      playing = false;
+      applyCosmosStartButton(startBtn, "paused");
+      return;
+    }
+    const atEnd = t >= dest.seconds && dest.seconds > 0;
+    startLight(atEnd || startBtn.dataset.phase === "arrived");
   };
-  startBtn.addEventListener("click", startRun);
+  startBtn.addEventListener("click", onStartBtn);
   chips.append(startBtn);
   stage.append(chips);
+  // Already moving on open — the child should see light on the way, not a still frame.
+  t = 0;
+  playing = true;
+  done = false;
 
   let running = true, raf = 0, last = performance.now();
   const draw = (now) => {
@@ -202,7 +234,7 @@ function renderLight(stage, onDone, goHome) {
     store.recordAnswer("cosmos", true);
   }
 
-  talk("光从月亮到地球只要 1.28 秒。按开始，看这一秒。太阳要 8 分 19 秒，我们用加快的速度看完。");
+  talk("光已经从月亮出发了。到地球只要 1.28 秒。也可以换成太阳，或按暂停。");
   stage._cleanup = () => { running = false; cancelAnimationFrame(raf); };
 }
 

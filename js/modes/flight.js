@@ -73,6 +73,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
   let progress = 0;
   let dragging = false;
   let frozen = false;
+  let arrived = false;
   let askArmed = firstPlay ? "half" : autoAsk(store.level("flight"));
   let asked = false;
   let compare = false;
@@ -142,6 +143,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       progress = autoFlightProgress(progress, dt, { dragging, frozen });
       maybeAsk();
     }
+    if (!arrived && progress >= 0.995) maybeArrive();
     const { ctx, w, h } = fitCanvas(canvas);
     const { view } = project(from.lon, from.lat, w, h);
     drawWater(ctx, w, h, view);
@@ -162,7 +164,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     drawPlane(ctx, here.x, here.y, ang, 1.45);
 
     const m = metrics(progress, km);
-    const qOpen = asked && !!s.querySelector(".prompt");
+    const qOpen = asked && !!s.querySelector(".prompt:not(.continue-box)");
     const maskRemain = qOpen && (askArmed === "half" || askArmed === "quarters");
     const maskTemp = qOpen && askArmed === "temp";
     board.update([
@@ -193,18 +195,38 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     up() { dragging = false; maybeAsk(); },
   });
 
-  function afterFlight(host) {
-    if (firstPlay) { onDone?.(); return; }
-    offerContinue(host, {
-      title: "还想飞吗？",
-      body: "可以再飞一趟，或去尺度之旅。",
+  function resumeFlight() {
+    // Stay on this route until the plane actually arrives.
+    frozen = false;
+    s.querySelectorAll(".continue-box").forEach((n) => n.remove());
+  }
+
+  function maybeArrive() {
+    if (arrived) return;
+    if (s.querySelector(".prompt:not(.continue-box)") || document.querySelector(".reveal")) return;
+    if (progress < 0.995) return;
+    arrived = true;
+    frozen = true;
+    progress = 1;
+    const city = to.city || "目的地";
+    talk("到" + city + "了！一共 " + formatKm(km) + "。");
+    afterReveal("flight", () => offerContinue(s, {
+      title: "到" + city + "了",
+      body: "这趟一共 " + formatKm(km) + "。还可以再飞一次，或换一趟。",
       tone: "ok",
       goHome,
       actions: [
         { label: "再飞一次", kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, tripId, firstPlay: false }) },
+        { label: city === "巴黎" ? "去东京" : "去巴黎", onClick: () => renderFlight(app, { goHome, onDone, tripId: city === "巴黎" ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
         { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
       ],
-    });
+    }));
+  }
+
+  function afterFlight(host) {
+    // First-play still goes to the big-picture / next-stop chooser after its midpoint beat.
+    if (firstPlay) { onDone?.(); return; }
+    resumeFlight();
   }
 
   function maybeAsk() {
@@ -233,7 +255,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
         // Big picture first (plane → sea → Earth → Moon), then a possible world card, then "下一站".
         startZoomOut(s, { from, to, km, goNext: () => afterReveal("flight", () => afterFlight(s)) });
       } else {
-        afterReveal("flight", () => maybeCompare());
+        afterReveal("flight", () => resumeFlight());
       }
     });
     s.append(box);
@@ -252,7 +274,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       talk(c.ok
         ? "对了。每升高 1 公里，外面大约会凉 6.5 度。"
         : "其实会更冷。每升高 1 公里，外面大约凉 6.5 度。");
-      afterReveal("flight", () => afterFlight(s));
+      afterReveal("flight", () => resumeFlight());
     });
     s.append(box);
     talk("飞得更高，外面会更冷还是更暖？");
@@ -268,7 +290,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       store.addPrediction({ mode: "flight", guessed: c.value, actual: r, ratio: c.value / r });
       box.remove();
       talk(c.ok ? "对了。剩下四分之三的路。" : "剩下四分之三，所以时间也大约是全程的四分之三。");
-      afterReveal("flight", () => afterFlight(s));
+      afterReveal("flight", () => resumeFlight());
     });
     s.append(box);
     talk("飞了四分之一，还要多久？");
@@ -276,7 +298,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
 
   function maybeCompare() {
     const lv = store.level("flight");
-    if (lv < 4 || compare) { onDone?.(); return; }
+    if (lv < 4 || compare) { return; }
     compare = true;
     const tokyo = routeDistanceKm("PVG", "HND");
     const paris = routeDistanceKm("PVG", "CDG");
@@ -298,7 +320,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       store.addPrediction({ mode: "flight", guessed: c.value, actual: ratio, ratio: c.value / ratio });
       box.remove();
       talk("去巴黎大约是去东京的 " + ratio.toFixed(1) + " 倍。");
-      afterReveal("flight", () => afterFlight(s));
+      afterReveal("flight", () => resumeFlight());
     });
     s.append(box);
     talk("去巴黎比去东京远几倍？");
@@ -324,7 +346,9 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
 export const FLIGHT_REMAIN_MASK = "？";
 
 export function flightRemainHudValue(remainH, { mask } = {}) {
-  return mask ? FLIGHT_REMAIN_MASK : formatHours(remainH);
+  if (mask) return FLIGHT_REMAIN_MASK;
+  if (!Number.isFinite(remainH) || remainH <= 0) return "到了";
+  return formatHours(remainH);
 }
 
 function autoAsk(level) {
@@ -332,6 +356,11 @@ function autoAsk(level) {
   if (level === 2) return "half";
   if (level === 3) return "quarters";
   return "half";
+}
+
+/** Mid-route quizzes must resume the flight, not end it. Arrival only at the destination. */
+export function afterQuizFlightAction(progress) {
+  return (Number(progress) >= 0.995) ? "arrive" : "resume";
 }
 
 function shuffle(arr) {

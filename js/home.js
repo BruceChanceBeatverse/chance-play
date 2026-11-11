@@ -59,11 +59,10 @@ export function renderHome(app, go) {
 
   // Adult-only entry: a quiet corner, not next to any "day is over" copy,
   // and not a tempting extra pill in the footer.
-  const secret = el("div", { class: "parent-secret", "aria-label": "家长入口" });
+  const secret = el("button", { class: "parent-secret", type: "button", "aria-label": "家长入口" });
   secretParentHotspot(secret, () => go("parent"));
-  s.append(secret);
-
-  s.append(sky, ui);
+  // After the sky canvas and home UI so the faint control is on top and actually receives taps.
+  s.append(sky, ui, secret);
   const stop = starfield(sky);
   s._cleanup = stop;
   app.replaceChildren(s);

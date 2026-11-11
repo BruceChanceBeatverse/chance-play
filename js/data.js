@@ -387,27 +387,55 @@ export const TOMORROW_QUESTIONS = [
 ];
 
 export const CARD_TEMPLATES = [
-  { id: "c-tokyo", title: "上海到东京", value: "1,740 公里", mode: "flight" },
-  { id: "c-paris", title: "上海到巴黎", value: "9,287 公里", mode: "flight" },
-  { id: "c-lapse", title: "每升高 1 公里", value: "大约凉 6.5°C", mode: "flight" },
-  { id: "c-bike", title: "自行车", value: "大约 15 公里/小时（假设）", mode: "race" },
-  { id: "c-plane", title: "飞机巡航", value: "大约 850 公里/小时（假设）", mode: "race" },
-  { id: "c-sheshan", title: "佘山", value: "大约 99 米高", mode: "hike" },
-  { id: "c-route", title: "上海到东京", value: "1,740 公里", mode: "numberline" },
-  { id: "c-earth", title: "地球一圈", value: "40,075 公里", mode: "zoom" },
-  { id: "c-moon", title: "光到月亮", value: "1.28 秒", mode: "cosmos" },
-  { id: "c-sun", title: "光到太阳", value: "8 分 19 秒", mode: "cosmos" },
-  { id: "c-ly", title: "1 光年", value: "光一年跑的路", mode: "cosmos" },
-  { id: "c-times10", title: "十倍电梯", value: "每按一次 ×10", mode: "elevator" },
-  { id: "c-mid", title: "数轴中点", value: "0 到 100 的中间是 50", mode: "numberline" },
-  { id: "c-huangshan", title: "黄山莲花峰", value: "1,864 米", mode: "hike" },
-  { id: "c-fuji", title: "富士山", value: "3,776 米", mode: "hike" },
-  { id: "c-planck", title: "普朗克长度", value: "大约 1.6×10⁻³⁵ 米", mode: "zoom" },
-  { id: "c-universe", title: "可观测宇宙", value: "大约 930 亿光年", mode: "zoom" },
-  { id: "c-ant", title: "蚂蚁", value: "大约 4 毫米", mode: "zoom" },
-  { id: "c-paris-flight", title: "上海到巴黎", value: "比东京远大约 5.3 倍", mode: "flight" },
-  { id: "c-hsr", title: "高铁 1 小时", value: "大约 350 公里（假设）", mode: "race" },
+  { id: "c-tokyo", title: "上海到东京", value: "1,740 公里", mode: "flight",
+    backTitle: "这趟航班", back: "从浦东飞到东京成田，大约 1,740 公里。这是 Chance 坐过的一趟飞机。" },
+  { id: "c-paris", title: "上海到巴黎", value: "9,287 公里", mode: "flight",
+    backTitle: "更远的一趟", back: "上海到巴黎大约 9,287 公里，比去东京远大约 5.3 倍。" },
+  { id: "c-lapse", title: "每升高 1 公里", value: "大约凉 6.5°C", mode: "flight",
+    backTitle: "为什么高空很冷", back: "飞机飞在大约 11 公里高的地方。每往上 1 公里，外面大约再凉 6.5°C。" },
+  { id: "c-bike", title: "自行车", value: "大约 15 公里/小时（假设）", mode: "race",
+    backTitle: "慢慢骑", back: "这是用来比较的假设速度。从家到学校 2 公里，骑车大约要几分钟。" },
+  { id: "c-plane", title: "飞机巡航", value: "大约 850 公里/小时（假设）", mode: "race",
+    backTitle: "很快", back: "这是用来比较的假设巡航速度。同样 2 公里，飞机只要几秒钟。" },
+  { id: "c-sheshan", title: "佘山", value: "大约 99 米高", mode: "hike",
+    backTitle: "家附近的山", back: "西佘山的官方高度大约 99 米。从山脚走到山顶，比家里的楼梯高很多。" },
+  { id: "c-route", title: "去东京的一半", value: "大约 870 公里", mode: "numberline",
+    backTitle: "对折一下", back: "上海到东京大约 1,740 公里。对折之后，一半大约是 870 公里。数轴上的中点，就是这个意思。" },
+  { id: "c-earth", title: "地球一圈", value: "40,075 公里", mode: "zoom",
+    backTitle: "绕一圈", back: "赤道一圈大约 40,075 公里。去巴黎大约是地球一圈的四分之一不到。" },
+  { id: "c-moon", title: "光到月亮", value: "1.28 秒", mode: "cosmos",
+    backTitle: "很快就到", back: "光从月亮跑到地球，只要大约 1.28 秒。比你数「一、二」还短一点点。" },
+  { id: "c-sun", title: "光到太阳", value: "8 分 19 秒", mode: "cosmos",
+    backTitle: "要等一会儿", back: "光从太阳到地球大约要 8 分 19 秒。比到月亮远得多。" },
+  { id: "c-ly", title: "1 光年", value: "光一年跑的路", mode: "cosmos",
+    backTitle: "不是一年的时间", back: "光年是路程，不是时间。是光在一年里跑过的那么远。" },
+  { id: "c-times10", title: "十倍电梯", value: "每按一次 ×10", mode: "elevator",
+    backTitle: "再乘下去", back: "1 乘 10 是 10，再乘 10 是 100。一直乘，可以从一千走到一百万，再走到一亿。" },
+  { id: "c-mid", title: "数轴中点", value: "0 到 100 的中间是 50", mode: "numberline",
+    backTitle: "一半在这里", back: "0 到 100 对折，中间正好是 50。不是 80，也不是 100。" },
+  { id: "c-huangshan", title: "黄山莲花峰", value: "1,864 米", mode: "hike",
+    backTitle: "比佘山高很多", back: "莲花峰的官方高度是 1,864 米，大约是佘山的 19 倍。" },
+  { id: "c-fuji", title: "富士山", value: "3,776 米", mode: "hike",
+    backTitle: "更高的一座", back: "富士山的官方高度是 3,776 米，大约是黄山莲花峰的两倍。" },
+  { id: "c-planck", title: "普朗克长度", value: "大约 1.6×10⁻³⁵ 米", mode: "zoom",
+    backTitle: "最小的一站", back: "这是尺度之旅最里面的一站，比蚂蚁、比一粒沙都小很多很多。" },
+  { id: "c-universe", title: "可观测宇宙", value: "大约 930 亿光年", mode: "zoom",
+    backTitle: "最大的一站", back: "这是我们能说到的最大：可观测宇宙的尺度。要一站一站走过去，才会感觉到有多远。" },
+  { id: "c-ant", title: "蚂蚁", value: "大约 4 毫米", mode: "zoom",
+    backTitle: "能看见的小", back: "大约 4 毫米。这是你能看见、能比划的小，比普朗克长度大很多很多。" },
+  { id: "c-paris-flight", title: "去巴黎有多远", value: "比东京远大约 5.3 倍", mode: "flight",
+    backTitle: "同样是飞机", back: "上海到巴黎大约 9,287 公里，上海到东京大约 1,740 公里。9,287 ÷ 1,740 大约是 5.3。" },
+  { id: "c-hsr", title: "高铁 1 小时", value: "大约 350 公里（假设）", mode: "race",
+    backTitle: "比汽车快", back: "这是用来比较的假设：高铁一小时大约能走 350 公里，比汽车快，比飞机慢。" },
 ];
+
+/** Refresh a stored card from the current template so old title/art/back update without wiping progress. */
+export function resolveCard(stored) {
+  if (!stored || !stored.id) return stored;
+  const t = CARD_TEMPLATES.find((x) => x.id === stored.id);
+  if (!t) return stored;
+  return { ...stored, title: t.title, value: t.value, back: t.back, backTitle: t.backTitle, mode: t.mode };
+}
 
 export const CONST = {
   EARTH_EQUATOR_KM, EARTH_MOON_KM, AU_KM, PROXIMA_LY, PROXIMA_KM,

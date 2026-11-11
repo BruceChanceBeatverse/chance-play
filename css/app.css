@@ -939,16 +939,33 @@ button, input, textarea, select { font-family: inherit; }
 }
 
 
-/* Adult-only parent entry: quiet top-left corner, easy to miss on purpose,
-   not sitting next to end-of-day copy in the footer. */
+/* Adult-only parent entry: a faint gold dot in the top-right, easy for a
+   child to miss, but actually visible and tappable for an adult who knows
+   to tap five times quickly. Must sit above the sky canvas and home UI. */
 .parent-secret {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 28px;
-  height: 28px;
-  opacity: 0.04;
-  z-index: 5;
+  top: 6px;
+  right: 6px;
+  left: auto;
+  width: 44px;
+  height: 44px;
+  opacity: 1;
+  z-index: 40;
+  pointer-events: auto;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.parent-secret::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(244, 239, 228, 0.32);
+  box-shadow: 0 0 8px rgba(245, 200, 76, 0.35);
 }
 
 .lock-explain {
@@ -1002,7 +1019,30 @@ button, input, textarea, select { font-family: inherit; }
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.card-face.card-back { transform: rotateY(180deg); background: linear-gradient(180deg, #2a1d10, #0d2233); }
+.card-face.card-back {
+  transform: rotateY(180deg);
+  background: linear-gradient(180deg, #f4efe4 0%, #e4c98a 100%);
+  border-color: #5ce1e6;
+  color: #1a1208;
+}
+.card-face.card-back .k {
+  color: #8a5a10;
+  letter-spacing: 0.28em;
+  font-size: 13px;
+  font-weight: 800;
+}
+.card-face.card-back .t {
+  color: #143a5c;
+  font-size: 26px;
+}
+.card-face.card-back .card-back-note {
+  color: #1a1208;
+  font-size: 20px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 22em;
+}
+.card-face.card-front .card-hint { color: var(--muted); margin: 0; font-size: 16px; }
 .reveal { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
 .reveal .card-keep { position: relative; z-index: 2; }
 
@@ -1034,6 +1074,42 @@ button, input, textarea, select { font-family: inherit; }
   font-weight: 700;
   text-align: center;
 }
+.bead-stack-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(620px, 94vw);
+}
+.bead-block {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f5c84c, #8a5a10);
+  box-shadow: 2px 2px 0 #6d480c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #2a1a08;
+  text-align: center;
+  line-height: 1.15;
+  padding: 4px;
+}
+.bead-block.tiny {
+  width: auto;
+  height: auto;
+  aspect-ratio: 1;
+  font-size: 9px;
+  border-radius: 3px;
+  padding: 1px;
+  box-shadow: 1px 1px 0 #6d480c;
+}
+.bead-block.yi {
+  background: linear-gradient(135deg, #ffe08a, #c98920);
+}
+.bead-million .bead-block.tiny { min-width: 0; }
 
 .zoom-ways {
   position: absolute;
