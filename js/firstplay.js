@@ -14,6 +14,11 @@ import { fillSky, drawWater, drawLand, drawRoute, drawCityGlow, drawPlane, drawS
 export function renderWelcome(app, go) {
   const s = screen();
   const canvas = el("canvas", { class: "fill welcome-map", "aria-hidden": "true" });
+  const startFlight = () => {
+    unlockAudio();
+    sfx.whoosh();
+    go("firstplay");
+  };
   const ui = el("div", { class: "welcome" },
     el("div", { class: "welcome-copy" },
       el("div", { class: "welcome-title" }, bi("Chance，还记得我们飞去东京吗？", "Chance, remember our flight to Tokyo?")),
@@ -22,13 +27,9 @@ export function renderWelcome(app, go) {
     el("button", {
       class: "plane-start",
       "aria-label": "开始 / Start",
-      onClick: () => {
-        unlockAudio();
-        sfx.whoosh();
-        go("firstplay");
-      },
+      onClick: startFlight,
     }, "✈️"),
-    el("div", { class: "hint" }, bi(UI.tapPlane)),
+    el("button", { class: "hint start-hint", type: "button", onClick: startFlight }, bi(UI.tapPlane)),
   );
   s.append(canvas, ui);
   let running = true, raf = 0, t0 = performance.now();

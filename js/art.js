@@ -987,16 +987,17 @@ export function drawBundSkyline(ctx, cx, baseY, width, height, { highlight = "",
 
   if (labels) {
     ctx.fillStyle = "#f4efe4";
-    ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     ctx.font = "700 11px -apple-system, PingFang SC, sans-serif";
+    // Stagger heights so Pearl and SWFC labels do not collide at the same y.
     const items = [
-      { x: jinX, y: baseY - H * 0.62, zh: "金茂 420.5 米" },
-      { x: pearlX, y: baseY - H * 0.82, zh: "东方明珠 468 米" },
-      { x: swX, y: baseY - H * 0.82, zh: "环球金融中心 492 米" },
-      { x: twX, y: baseY - H * 1.0, zh: "上海中心 632 米" },
+      { x: jinX, y: baseY - H * 0.66, zh: "金茂 420.5 米", align: "center" },
+      { x: pearlX - W * 0.04, y: baseY - H * 0.94, zh: "东方明珠 468 米", align: "center" },
+      { x: swX + W * 0.04, y: baseY - H * 0.70, zh: "环球金融中心 492 米", align: "center" },
+      { x: twX, y: baseY - H * 1.02, zh: "上海中心 632 米", align: "center" },
     ];
     for (const it of items) {
+      ctx.textAlign = it.align;
       ctx.fillText(it.zh, it.x, it.y);
     }
   }

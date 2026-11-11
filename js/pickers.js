@@ -9,7 +9,7 @@ import { store } from "./store.js";
 import { talk, unlockAudio, sfx } from "./audio.js";
 import { el, screen, topbar } from "./ui.js";
 import { airportByCode, routeDistanceKm } from "./data.js";
-import { formatKm } from "./geo.js";
+import { formatKm, zhDistanceToEn } from "./geo.js";
 import { paintRouteThumb, fillSky, drawMountainPair } from "./art.js";
 
 export function playableTrips() {
@@ -124,9 +124,10 @@ export const PLANE_CRUISE_KMH = 850;
 
 export function flightAssumptionCopy(kmText, kmTextEn) {
   const zhKm = typeof kmText === "object" && kmText ? (kmText.zh || "") : (kmText || "");
-  const enKm = typeof kmText === "object" && kmText
+  let enKm = typeof kmText === "object" && kmText
     ? (kmText.en || kmTextEn || "")
     : (kmTextEn || "");
+  if (zhKm && !enKm) enKm = zhDistanceToEn(zhKm);
   return {
     sub: (zhKm ? zhKm + " · " : "") + "巡航 850 公里/小时（假设）",
     subEn: (enKm ? enKm + " · " : "") + "cruise 850 km/h (assumed)",

@@ -500,6 +500,9 @@ button, input, textarea, select { font-family: inherit; }
   box-shadow: var(--shadow);
   text-shadow: 0 2px 8px rgba(0,0,0,0.55);
   margin-bottom: 18px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 /* Landscape / portrait tweaks */

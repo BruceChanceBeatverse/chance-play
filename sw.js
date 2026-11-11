@@ -1,6 +1,6 @@
 /* Offline cache. Precaches only same-origin files. No runtime requests
    to any other host — a missing file stays missing, we never "phone home". */
-const CACHE = "chance-scale-v23";
+const CACHE = "chance-scale-v24";
 const PRECACHE = [
   "./",
   "./index.html",
