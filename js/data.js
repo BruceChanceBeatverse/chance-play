@@ -30,7 +30,9 @@ import {
  *   mountain and has climbed nearly 1,000 m in the Dolomites; we do not say
  *   he summited 2,563 m.
  * Fuji 3,776 m official (GSI 3776.12 m, usually written 3776). He has been,
- *   and remembers it as more than 3,800 m / 三千八百多米.
+ *   and remembers it as about 3,800 m / 大概三千八百米.
+ *   Official 3,776 m is a little less than 3,800, so never say 三千八百多米
+ *   or "more than 3,800 m" as if the official height were higher than 3,800.
  * Everest 8,848.86 m official, commonly 8,849 m. He knows it; he has not climbed it.
  * His hiking ability: 12 km in one go with 800–1,000 m of climbing. Not 假设.
  */
@@ -47,6 +49,18 @@ export const EVEREST_OFFICIAL_M = 8848.86;
 export const CHANCE_HIKE_KM = 12;
 export const CHANCE_HIKE_GAIN_M = 900;
 export const SHESHAN_HEIGHT_M = 99;
+
+/** ASSUMPTION: typical mild-day ground temperature in °C, not live weather. */
+const ASSUMED_GROUND_C = {
+  PVG: 18, SHA: 18,
+  HND: 16, NRT: 16,
+  CDG: 10, ORY: 10,
+};
+
+export function airportAssumedGroundC(code) {
+  const n = ASSUMED_GROUND_C[code];
+  return Number.isFinite(n) ? n : 15;
+}
 
 export const AIRPORTS = {
   PVG: { icao: "ZSPD", name: "上海浦东", nameEn: "Shanghai Pudong", city: "上海", lat: 31.143378, lon: 121.805214 },
@@ -214,7 +228,7 @@ export const WORLD_LAYERS = [
   { id: "steps", dir: "out", n: 2, name: "我走 100 步", metres: 50, how: "下楼真的走一次",
     blurb: "用你的步长走 100 步。", power: 1, fromProfile: "strideM", times: 100 },
   { id: "mountain", dir: "out", n: 3, name: "富士山", metres: 3776, how: "高度剖面",
-    blurb: "富士山官方高度 3,776 米。你来过这座山。你记得它有三千八百多米，差不多就是这个数。", power: 3, fromHike: true },
+    blurb: "富士山官方高度 3,776 米。你来过这座山。你记得它大概是三千八百米；官方数字比三千八百要少一点点。", power: 3, fromHike: true },
   { id: "city", dir: "out", n: 4, name: "上海城市", metres: 40000, how: "坐车去机场",
     blurb: "从市区开车去浦东机场，大约 40 公里（假设，路上会更绕）。", power: 4, fromProfile: "cityAirportKm", km: true },
   { id: "tokyo", dir: "out", n: 5, name: "上海 → 东京", metres: 1_740_300, how: "我的飞行地图",
@@ -257,7 +271,7 @@ export const SAMPLE_HIKES = [
     peakM: 3776,
     color: "#ff7a59",
     // Schematic from the trail foot (0 m), not the Yoshida 5th station (~2,300 m).
-    // Official peak 3776 m. He remembers it as more than 3,800 m.
+    // Official peak 3776 m. He remembers it as about 3,800 m (a little high).
     points: makeHillProfile({ lengthKm: 20, peakM: 3776, peakAt: 0.85, startM: 0, bumps: [[0.4, 1800, 0.1]] }),
   },
   {
@@ -364,7 +378,7 @@ export const MODE_META = [
   { id: "hike", name: "爬山剖面", nameEn: "Mountain profile", icon: "mountain", weekday: 3 },
   { id: "zoom", name: "尺度之旅", nameEn: "Scale journey", icon: "zoom", weekday: 4, featured: true },
   { id: "numberline", name: "数轴航线", nameEn: "Number-line route", icon: "axis", weekday: 5 },
-  { id: "compare", name: "谁更大谁更快", nameEn: "Which is bigger", icon: "compare", weekday: 5 },
+  { id: "compare", name: "谁更大谁更快", nameEn: "Which is bigger or faster", icon: "compare", weekday: 5 },
   { id: "elevator", name: "十倍电梯", nameEn: "Times-ten lift", icon: "lift", weekday: 4 },
   { id: "cosmos", name: "宇宙延伸", nameEn: "Cosmos", icon: "cosmos", weekday: 6, unlockAfter: ["flight", "race"] },
 ];
@@ -503,8 +517,8 @@ export const CARD_TEMPLATES = [
     backEn: "Lotus Peak is officially about 1,864 m. You can compare it with Fuji and Schlern. It is not a mountain you have said you climbed." },
   { id: "c-fuji", title: "富士山", titleEn: "Mount Fuji", value: "3,776 米", valueEn: "3,776 m", mode: "hike",
     backTitle: "你来过的山", backTitleEn: "A mountain you've been to",
-    back: "官方高度 3,776 米。你来过这座山。你记得它有三千八百多米，差不多就是这个数。这条线还不是你自己走的足迹。",
-    backEn: "The official height is 3,776 m. You've been here. You remember it as more than 3,800 m, which is about the same number. This path is not your own GPS track." },
+    back: "官方高度 3,776 米。你来过这座山。你记得它大概是三千八百米；官方数字比三千八百要少一点点。这条线还不是你自己走的足迹。",
+    backEn: "The official height is 3,776 m. You've been here. You remember it as about 3,800 m. The official number is a little less than 3,800. This path is not your own GPS track." },
   { id: "c-planck", title: "普朗克长度", titleEn: "The Planck length", value: "大约 1.6×10⁻³⁵ 米", valueEn: "About 1.6×10⁻³⁵ m", mode: "zoom",
     backTitle: "最小的一站", backTitleEn: "The smallest stop", back: "这是尺度之旅最里面的一站，比蚂蚁、比一粒沙都小很多很多。", backEn: "This is the innermost stop on the scale journey, much smaller than an ant or a grain of sand." },
   { id: "c-universe", title: "可观测宇宙", titleEn: "The observable universe", value: "大约 930 亿光年", valueEn: "About 93 billion light-years", mode: "zoom",

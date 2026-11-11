@@ -215,7 +215,11 @@ export function renderHikePicker(app, { goHome, onPick } = {}) {
   const row = el("div", { class: "choices choose-next-row picker-row" });
   for (const h of hikes) {
     const tag = h.sample ? { zh: "示例剖面", en: "A sample path" } : { zh: "你的轨迹", en: "Your own track" };
-    const peak = Number.isFinite(h.peakM) ? { zh: "最高约 " + Math.round(h.peakM) + " 米", en: "About " + Math.round(h.peakM) + " m at the top" } : null;
+    const peak = Number.isFinite(h.peakM)
+      ? (h.officialSummit === false
+        ? { zh: "今天走到约 " + Math.round(h.peakM) + " 米（不是 2,563 米的官方顶）", en: "Today's walk goes to about " + Math.round(h.peakM) + " m, not the official 2,563 m top" }
+        : { zh: "最高约 " + Math.round(h.peakM) + " 米", en: "About " + Math.round(h.peakM) + " m at the top" })
+      : null;
     const sub = peak
       ? { zh: tag.zh + " · " + peak.zh, en: tag.en + " · " + peak.en }
       : tag;

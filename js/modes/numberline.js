@@ -5,8 +5,13 @@ import { clamp, formatNumber } from "../geo.js";
 import { drawPlane, drawWater } from "../art.js";
 import { routeDistanceKm } from "../data.js";
 
-function rangeFor(level) {
-  if (level <= 1) return { min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "", route: { start: "上海", mid: "海中间", end: "东京" }, subtitle: "这是去东京的航线：0 是上海，10 是东京" };
+export function rangeFor(level, variant = 0) {
+  if (level <= 1) {
+    const paris = (Number(variant) % 2) === 1;
+    return paris
+      ? { min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "", route: { start: "上海", mid: "海中间", end: "巴黎" }, subtitle: "这是去巴黎的航线：0 是上海，10 是巴黎" }
+      : { min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "", route: { start: "上海", mid: "海中间", end: "东京" }, subtitle: "这是去东京的航线：0 是上海，10 是东京" };
+  }
   if (level === 2) return { min: 0, max: 100, mid: true, ticks: [0, 50, 100], unit: "", route: { start: "家", mid: "一半", end: "更远" }, subtitle: "0 到 100 的一条路" };
   if (level === 3) return { min: 0, max: 100, mid: false, ticks: [0, 100], unit: "", route: { start: "家", end: "更远" }, subtitle: "0 到 100，中间先不标" };
   if (level === 4) return { min: 0, max: 1000, mid: true, ticks: [0, 500, 1000], unit: " 米", route: { start: "山脚", mid: "一半", end: "更高" }, subtitle: "把一座山当成 0 到 1,000 米" };
@@ -21,11 +26,11 @@ function targetFor(range, level) {
   return [100, 250, 500][Math.floor(Math.random() * 3)];
 }
 
-export function renderNumberline(app, { goHome, onDone } = {}) {
+export function renderNumberline(app, { goHome, onDone, variant = 0 } = {}) {
   const s = screen();
   s.classList.add("mode-numberline");
   const level = store.level("numberline");
-  const range = rangeFor(level);
+  const range = rangeFor(level, variant);
   let targets, placed, current;
 
   if (range.special === "routes") {
@@ -218,7 +223,7 @@ export function renderNumberline(app, { goHome, onDone } = {}) {
     const btnRow = el("div", { class: "choices" },
       el("button", { class: "choice ok", onClick: () => {
         hint.remove();
-        afterReveal("numberline", () => offerContinue(s, { title: "再放一个？", body: "还可以再玩一条航线。", tone: "ok", goHome, actions: [{ label: "再玩一次", kind: "ok", onClick: () => renderNumberline(app, { goHome, onDone }) }] }));
+        afterReveal("numberline", () => offerContinue(s, { title: "再放一个？", body: "还可以再玩一条航线。", tone: "ok", goHome, actions: [{ label: "再玩一次", kind: "ok", onClick: () => renderNumberline(app, { goHome, onDone, variant: variant + 1 }) }] }));
       } }, "下一步"),
     );
     hint.append(btnRow);

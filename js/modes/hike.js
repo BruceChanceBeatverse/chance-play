@@ -209,7 +209,7 @@ export const HIKE_MOUNTAIN_CARDS = {
 export function hikeTrailNote(hike) {
   if (!hike) return { zh: "示例山路，还不是你自己走的足迹", en: "A sample path, not your own GPS track yet" };
   if (hike.id === "fuji") {
-    return { zh: "你来过这座山。官方 3,776 米。你记得它有三千八百多米。这条线还不是你自己走的足迹。", en: "You've been to this mountain. Officially 3,776 m. You remember it as more than 3,800 m. This path is not your own GPS track." };
+    return { zh: "你来过这座山。官方 3,776 米。你记得它大概是三千八百米；官方数字比三千八百要少一点点。这条线还不是你自己走的足迹。", en: "You've been to this mountain. Officially 3,776 m. You remember it as about 3,800 m. The official number is a little less than 3,800. This path is not your own GPS track." };
   }
   if (hike.id === "dolomites" || hike.livedAbility) {
     return { zh: "这座平顶山像你认识的大板凳山，斯西利亚尔（Schlern / Sciliar）。一次大约 12 公里，爬升大约 900 米。不是 2,563 米的登顶，也不是一条量过的足迹。", en: "This flat top looks like the table-top mountain you know, 大板凳山, Schlern / Sciliar. About 12 km, with about 900 m of climbing. Not a 2,563 m summit, and not a measured GPS track." };
@@ -240,10 +240,10 @@ export function hikeCelebrateCopy(hike, officialPeak) {
   }
   const peak = Math.round(officialPeak);
   const fujiNote = hike && hike.id === "fuji"
-    ? "官方高度 3,776 米。你记得它有三千八百多米，差不多就是这个数。"
+    ? "官方高度 3,776 米。你记得它大概是三千八百米；官方数字比三千八百要少一点点。"
     : "";
   const fujiEn = hike && hike.id === "fuji"
-    ? " The official height is 3,776 m. You remember it as more than 3,800 m, which is about the same number."
+    ? " The official height is 3,776 m. You remember it as about 3,800 m. The official number is a little less than 3,800."
     : "";
   const trail = hike && hike.sample === false ? "" : "这是示例山路，还不是你自己走的足迹。";
   const trailEn = hike && hike.sample === false ? "" : " This is a sample path, not your own GPS track yet.";
@@ -350,7 +350,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
   }));
   const board = hud([
     { label: "走了多远", labelEn: "How far", value: "0 公里", tone: "cyan" },
-    { label: "有多高", labelEn: "How high", value: Math.round(pts[0].elevM) + " 米", tone: "" },
+    { label: "现在海拔", labelEn: "Altitude now", value: Math.round(pts[0].elevM) + " 米", tone: "" },
     { label: "坡度", labelEn: "Slope", value: "平", tone: "mint" },
     { label: "外面气温", labelEn: "Outside temp", value: formatTemp(hikeTempC(pts[0].elevM)), tone: "coral" },
   ]);
@@ -441,7 +441,10 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     ctx.fillStyle = "#0b1520";
     ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
     ctx.textAlign = lab.align;
-    ctx.fillText("最高 " + Math.round(officialPeak) + " 米", lab.x, lab.y);
+    const peakText = hike && hike.officialSummit === false
+      ? "今天走到约 " + Math.round(officialPeak) + " 米"
+      : "最高 " + Math.round(officialPeak) + " 米";
+    ctx.fillText(peakText, lab.x, lab.y);
 
     const reading = hikeHudReading(here, hike);
     const hideElev = asked && (quizKind === "mid" || quizKind === "slope");

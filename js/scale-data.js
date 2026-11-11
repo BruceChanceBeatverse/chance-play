@@ -309,7 +309,7 @@ export const NAMED_SCALE_STOPS = [
     source: "Chance's lived hiking ability: 12 km in one go",
   },
   {
-    id: "schlern", name: "斯西利亚尔", nameEn: "Schlern / Sciliar", metres: SCHLERN_PEZ_M, kind: "mountain",
+    id: "schlern", name: "大板凳山", nameEn: "Schlern / Sciliar", metres: SCHLERN_PEZ_M, kind: "mountain",
     shown: "2,563 米", shownEn: "2,563 m",
     blurb: "这座平顶山在意大利南蒂罗尔的多洛米蒂，不在瑞士。官方最高点蒙特佩茨大约 2,563 米。你认识它。",
     blurbEn: "This table-top mountain is in the Dolomites of South Tyrol, Italy, not on the Swiss plateau. The official high point, Monte Pez, is about 2,563 m. You know it.",
@@ -331,8 +331,8 @@ export const NAMED_SCALE_STOPS = [
   {
     id: "fuji", name: "富士山", nameEn: "Mount Fuji", metres: FUJI_HEIGHT_M, kind: "mountain",
     shown: "3,776 米", shownEn: "3,776 m",
-    blurb: "官方高度 3,776 米。你来过这座山。你记得它有三千八百多米，差不多就是这个数。示例山路，还不是你自己走的足迹。",
-    blurbEn: "The official height is 3,776 m. You've been here. You remember it as more than 3,800 m, which is about the same number. This path is a sample trail, not your own GPS track.",
+    blurb: "官方高度 3,776 米。你来过这座山。你记得它大概是三千八百米；官方数字比三千八百要少一点点。示例山路，还不是你自己走的足迹。",
+    blurbEn: "The official height is 3,776 m. You've been here. You remember it as about 3,800 m. The official number is a little less than 3,800. This path is a sample trail, not your own GPS track.",
     correlate: "比斯西利亚尔高，大约是珠穆朗玛峰的一半不到。珠峰你认识，但没有爬过。",
     correlateEn: "Taller than Schlern, and a little less than half as high as Everest. You know Everest, but you have not climbed it.",
     lingerMode: "hike", hikeId: "fuji",
@@ -935,10 +935,18 @@ export function prettyScaleAtStop(metres, stop, { close } = {}) {
   return { zh: prettyScaleLine(metres), en: "" };
 }
 
+/** Scientific exponent n in m = c × 10^n, with 1 ≤ c < 10. */
+export function scientificExponent(m) {
+  if (!Number.isFinite(m) || m <= 0) return 0;
+  return Math.floor(Math.log10(m) + 1e-12);
+}
+
 export function prettyScaleLine(m) {
   const human = formatScaleMetres(m);
   const e = Math.log10(Math.max(1e-40, m));
-  const n = Math.round(e);
+  // Use the scientific exponent, never Math.round: 8.8×10²⁶ is in the 10²⁶
+  // decade, so a title saying 10²⁷ next to a 10²⁶ ring confuses a child.
+  const n = scientificExponent(m);
   if (Math.abs(e - n) > 0.22) return "现在大约 " + human;
   if (n === 0) return "现在大约 " + human + "（靠近 1 米）";
   return "现在大约 " + human + "（10 的 " + n + " 次方 米）";

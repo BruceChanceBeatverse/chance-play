@@ -176,6 +176,20 @@ export function isaTempC(hKm) {
   return ISA_TROPOPAUSE_C; // isothermal tropopause in the basic ISA layer
 }
 
+/**
+ * Outside air on a flight. Cruise stays on the ISA lapse so 11 km is still
+ * about -56°C. Near the ground, use the city's assumed typical temperature
+ * (not live weather) so Tokyo and Paris do not both read +15°C.
+ */
+export function flightOutsideTempC(hKm, groundC = ISA_SEA_LEVEL_C) {
+  const h = Math.max(0, Number(hKm) || 0);
+  const ground = Number.isFinite(groundC) ? groundC : ISA_SEA_LEVEL_C;
+  const isa = isaTempC(h);
+  if (h >= 1) return isa;
+  const t = Math.max(0, Math.min(1, h));
+  return ground + (isaTempC(1) - ground) * t;
+}
+
 /** Hiking air temperature: 15°C at sea level minus 0.65°C per 100 m (same lapse). */
 export function hikeTempC(elevM, seaLevelC = ISA_SEA_LEVEL_C) {
   return seaLevelC - (ISA_LAPSE_C_PER_KM / 1000) * elevM;

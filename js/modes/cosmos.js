@@ -301,6 +301,33 @@ function renderLight(stage, onDone, goHome, destId) {
   stage._cleanup = () => { running = false; cancelAnimationFrame(raf); };
 }
 
+export function blackHoleCompare(rKm, earthKm = EARTH_MEAN_DIAMETER_KM) {
+  const r = Number(rKm);
+  const earth = Number(earthKm) || 12742;
+  if (!(r > 0)) return { zh: "—", en: "—" };
+  if (r < 10) return {
+    zh: "大约一座小山那么宽（太阳质量黑洞约 3 公里）",
+    en: "About as wide as a small hill (a one-sun black hole is about 3 km)",
+  };
+  if (r < 200) return {
+    zh: "大约一座大城市那么宽",
+    en: "About as wide as a big city",
+  };
+  if (r < earth) return {
+    zh: "还不到地球那么宽（地球平均直径约 " + Math.round(earth).toLocaleString("zh-CN") + " 公里）",
+    en: "Not as wide as Earth yet (Earth's mean diameter is about " + Math.round(earth).toLocaleString("en-US") + " km)",
+  };
+  if (r < 4e5) return {
+    zh: "比地球还宽（地球平均直径约 " + Math.round(earth).toLocaleString("zh-CN") + " 公里）",
+    en: "Wider than Earth (mean diameter about " + Math.round(earth).toLocaleString("en-US") + " km)",
+  };
+  if (r < 2e7) return {
+    zh: "快到地球到月亮的距离了",
+    en: "Getting close to the distance from Earth to the Moon",
+  };
+  return { zh: "非常大", en: "Very large" };
+}
+
 function renderHole(stage, onDone, goHome) {
   stage.replaceChildren();
   const canvas = el("canvas", { class: "fill", "aria-label": "黑洞调节器" });
@@ -309,9 +336,9 @@ function renderHole(stage, onDone, goHome) {
   let logM = 0; // 10^logM solar masses
   const minL = 0, maxL = Math.log10(SGR_A_SOLAR_MASSES);
   const board = hud([
-    { label: "有多重", value: "1 个太阳", tone: "cyan" },
-    { label: "有多宽", value: SUN_SCHWARZSCHILD_KM.toFixed(2) + " 公里", tone: "" },
-    { label: "对照", value: "大约一座小山那么宽", tone: "mint" },
+    { label: "有多重", labelEn: "Mass", value: "1 个太阳", tone: "cyan" },
+    { label: "有多宽", labelEn: "Width", value: SUN_SCHWARZSCHILD_KM.toFixed(2) + " 公里", tone: "" },
+    { label: "对照", labelEn: "Compare", value: blackHoleCompare(SUN_SCHWARZSCHILD_KM).zh, tone: "mint" },
   ]);
   stage.append(board);
   const sliderWrap = el("div", { class: "bottom-bar", style: { flexDirection: "column", alignItems: "stretch" } },
@@ -325,12 +352,7 @@ function renderHole(stage, onDone, goHome) {
   });
 
   function compare(rKm) {
-    if (rKm < 10) return "大约一座小山那么宽（太阳质量黑洞约 3 公里）";
-    if (rKm < 200) return "大约一座大城市那么宽";
-    if (rKm < 13000) return "比地球还宽（地球平均直径约 " + Math.round(EARTH_MEAN_DIAMETER_KM).toLocaleString("zh-CN") + " 公里）";
-    if (rKm < 4e5) return "快到地球到月亮的距离了";
-    if (rKm < 2e7) return "人马座 A* 大约 1,270 万公里";
-    return "非常大";
+    return blackHoleCompare(rKm).zh;
   }
 
   let running = true, raf = 0;

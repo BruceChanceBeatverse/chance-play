@@ -2,10 +2,10 @@ import { store } from "../store.js";
 import { talk } from "../audio.js";
 import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen, goToScaleJourney } from "../ui.js";
 import {
-  airportByCode, routeDistanceKm,
+  airportByCode, routeDistanceKm, airportAssumedGroundC,
 } from "../data.js";
 import {
-  greatCirclePoints, flightAltitudeKm, isaTempC, formatKm, formatKmEn, formatHours, formatHoursEn, formatHoursPair, formatTemp,
+  greatCirclePoints, flightAltitudeKm, flightOutsideTempC, formatKm, formatKmEn, formatHours, formatHoursEn, formatHoursPair, formatTemp,
   lonLatToXY, clamp, lerp, smoothstep, interpolateGreatCircle,
 } from "../geo.js";
 import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup, drawEiffelTower } from "../art.js";
@@ -98,11 +98,12 @@ function routeView(from, to) {
   return { lon0, lon1, lat0, lat1 };
 }
 
-function metrics(progress, km) {
+function metrics(progress, km, fromCode, toCode) {
   const flown = km * progress;
   const remainH = ((1 - progress) * km) / CRUISE_KMH;
   const alt = flightAltitudeKm(progress, 11);
-  const temp = isaTempC(alt);
+  const groundC = airportAssumedGroundC(progress < 0.5 ? fromCode : toCode);
+  const temp = flightOutsideTempC(alt, groundC);
   return { flown, remainH, alt, temp };
 }
 
@@ -145,7 +146,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     { label: "已经飞了", labelEn: "Distance flown", value: "0 公里", tone: "cyan" },
     { label: assume.remainLabel, labelEn: assume.remainLabelEn || "Time left", value: formatHours(km / CRUISE_KMH), tone: "" },
     { label: assume.altLabel, labelEn: assume.altLabelEn || "Height (assumed)", value: "0.0 公里", tone: "mint" },
-    { label: "外面气温", labelEn: "Outside temp", value: formatTemp(isaTempC(0)), tone: "coral" },
+    { label: "外面气温", labelEn: "Outside temp (assumed)", value: formatTemp(flightOutsideTempC(0, airportAssumedGroundC(trip.from))), tone: "coral" },
   ]);
 
   s.append(canvas, bar, board);
@@ -225,7 +226,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     const ang = Math.atan2(ah.y - here.y, ah.x - here.x);
     drawPlane(ctx, here.x, here.y, ang, 1.45);
 
-    const m = metrics(progress, km);
+    const m = metrics(progress, km, trip.from, trip.to);
     const qOpen = asked && !!s.querySelector(".prompt:not(.continue-box)");
     const maskRemain = qOpen && (askArmed === "half" || askArmed === "quarters");
     const maskTemp = qOpen && askArmed === "temp";
@@ -314,7 +315,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     frozen = true;
     // Use the progress that actually triggered the prompt so the HUD
     // "还要多久" matches the correct button (fires at >= 0.48, not exactly 0.5).
-    const remain = metrics(progress, km).remainH;
+    const remain = metrics(progress, km, trip.from, trip.to).remainH;
     const choices = shuffle(halfTimeChoiceList(progress, km));
     const box = promptBox(UI.halfwayQuiz, UI.halfwayQuizBody, choices, (c) => {
       const correct = !!c.ok;
@@ -358,7 +359,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
   function fireQuarter() {
     asked = true;
     frozen = true;
-    const r = metrics(progress, km).remainH;
+    const r = metrics(progress, km, trip.from, trip.to).remainH;
     const choices = shuffle(quarterChoiceList(progress, km));
     const box = promptBox(
       { zh: "飞了四分之一，还要多久？", en: "We've flown a quarter of the way. How much longer?" },

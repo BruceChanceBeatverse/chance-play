@@ -385,6 +385,7 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
 
     const cap = zoomScaleCap(w, h, { hasPrompt, landscape });
     const decade0 = Math.floor(logS) - 3;
+    const homeDecade = Math.floor(logS + 1e-12);
     let usedCap = false;
     for (let d = decade0; d <= decade0 + 7; d++) {
       const rel = d - logS;
@@ -396,15 +397,17 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
         rad = cap;
         usedCap = true;
       }
+      const home = d === homeDecade;
       ctx.beginPath();
       ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(92,225,230,${clamp(1.2 - Math.abs(rel) * 0.4, 0.08, 0.45)})`;
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `rgba(92,225,230,${clamp((home ? 1.45 : 1.2) - Math.abs(rel) * 0.4, 0.08, 0.7)})`;
+      ctx.lineWidth = home ? 2.4 : 1.5;
       ctx.stroke();
       const lab = zoomDecadeLabelPos(cx, cy, rad, 96, zoomReadoutBox(w, h, { hasPrompt, landscape }));
-      if (lab && rad > 28 && rad < Math.min(w, h) * 0.45) {
-        ctx.fillStyle = "rgba(200,230,255,0.9)";
-        ctx.font = "700 14px -apple-system, PingFang SC, sans-serif";
+      const labelOk = lab && rad > 28 && (home || rad < Math.min(w, h) * 0.45);
+      if (labelOk && lab) {
+        ctx.fillStyle = home ? "rgba(245,200,76,0.95)" : "rgba(200,230,255,0.9)";
+        ctx.font = (home ? "800 16px" : "700 14px") + " -apple-system, PingFang SC, sans-serif";
         ctx.textAlign = "left";
         ctx.fillText("10" + sup(d) + " 米", lab.x, lab.y);
       }
@@ -544,19 +547,24 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
     asked = true;
     auto = false;
     store.rememberAsked("zoom:decades");
-    const box = promptBox("从你的身高到一座山，大约差几个 10 倍？", "数一数中间经过了几层。", [
-      { label: "大约 2 个 10 倍", ok: true, icon: "⛰️" },
-      { label: "大约 10 个 10 倍" },
-      { label: "差不多一样高" },
-    ], (c) => {
+    const box = promptBox(
+      { zh: "从你的身高到富士山，大约差几个 10 倍？", en: "From your height to Mount Fuji, about how many times-ten is that?" },
+      { zh: "数一数中间经过了几层。100 米更像米兰大教堂，还不是一座山。", en: "Count the layers in between. 100 m is more like the Milan Duomo, not a mountain you know." },
+      [
+        { label: "大约 3 个 10 倍", labelEn: "About 3 times ten", ok: true, icon: "⛰️" },
+        { label: "大约 2 个 10 倍", labelEn: "About 2 times ten" },
+        { label: "大约 10 个 10 倍", labelEn: "About 10 times ten" },
+      ], (c) => {
       store.recordAnswer("zoom", !!c.ok);
       markAnswer(box, c, !!c.ok);
-      const line = c.ok ? "对。1 米到 10 米再到大约 100 米，两个 10 倍，就到一座小山。" : "从大约 1 米到大约 100 米，是两个 10 倍。";
+      const line = c.ok
+        ? { zh: "对。1 米到 10 米、到 100 米、再到 1,000 米，三个 10 倍，就到你能爬的那种山了。富士山 3,776 米，还要再高一点。", en: "Yes. 1 m to 10 m to 100 m to 1,000 m is three times ten — that's a mountain you can climb. Fuji is 3,776 m, a little higher still." }
+        : { zh: "从大约 1 米到大约 1,000 米，是三个 10 倍。100 米更像米兰大教堂。富士山是 3,776 米。", en: "From about 1 m to about 1,000 m is three times ten. 100 m is more like the Milan Duomo. Fuji is 3,776 m." };
       talk(line);
       setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
     });
     s.append(box);
-    talk("从你的身高到一座山，大约差几个 10 倍？");
+    talk({ zh: "从你的身高到富士山，大约差几个 10 倍？", en: "From your height to Mount Fuji, about how many times-ten is that?" });
   }
 
   function askTimes() {
@@ -980,8 +988,9 @@ export function canAskOrder(visited) {
 
 export function canAskDecades(visited) {
   const ids = visited instanceof Set ? visited : new Set(visited);
-  // L2 wording: 从你的身高到一座山. Steps alone is not enough; city is past mountain scale.
-  return ids.has("me") && (ids.has("mountain") || ids.has("city"));
+  // Ask only after a mountain Chance knows, and teach ~3 orders to Fuji,
+  // never "2 orders to a 100 m hill".
+  return ids.has("me") && (ids.has("fuji") || ids.has("schlern"));
 }
 
 function sup(n) {
