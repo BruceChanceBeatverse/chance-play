@@ -91,11 +91,11 @@ export function hikeMidTrailContinueLabels() {
   return ["继续走到山顶", "再爬一座"];
 }
 
-/** Ask "坡度快是什么意思" on a steep stretch when it is today's task, or at the task's level. */
+/** Today's 「坡度快」 prompt must become a real question, even on a gentle hill like 佘山. */
 export function hikeShouldAskSlope({ taskId, level, steep = false, already = false } = {}) {
   if (already) return false;
-  if (!steep) return false;
-  return taskId === "t30" || Number(level) >= 5;
+  if (taskId === "t30") return true;
+  return !!steep && Number(level) >= 5;
 }
 
 /** 「这是哪一座山」 belongs near the summit, not a third of the way up. */
