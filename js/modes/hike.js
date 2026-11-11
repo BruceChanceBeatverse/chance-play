@@ -124,6 +124,26 @@ export function hikeWhichAskReady(here, hike) {
   return toPeak >= -w.distTol && toPeak <= Math.max(0.35, w.totalKm * 0.15);
 }
 
+/**
+ * Never open a peak-quiz modal that freezes auto-walk.
+ * Asking on the approach stretch (the old hikeWhichAskReady window)
+ * stopped 佘山 at about 81 m, so the figure never reached the official 99 m summit.
+ * L1 learns "where is the highest point" by watching the figure arrive
+ * and seeing 「到山顶了！最高 99 米」.
+ */
+export function hikePeakAskReady(here, hike, { already = false } = {}) {
+  return false;
+}
+
+/** Mountain world cards drop at the summit, never mid-trail after a quiz. */
+export function hikeQuizRevealOpts(hike, { atSummit = false, force = false } = {}) {
+  if (!atSummit) return {};
+  return hikeRevealOpts(hike, { force });
+}
+
+/** After a mid-trail answer, keep walking even if the child does not tap 继续走到山顶. */
+export const HIKE_MID_QUIZ_RESUME_MS = 2500;
+
 export const HIKE_MOUNTAIN_CARDS = {
   sheshan: "c-sheshan",
   huangshan: "c-huangshan",
@@ -236,8 +256,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     if (asked) hint.dismiss();
     if (!dragging && !asked && t < 1) {
       t = autoHikeProgress(t, dt, { dragging, asked, hike });
-      maybeAsk();
     }
+    const hereNow = at(t);
+    // Celebrate arrival before any quiz, so the peak question cannot steal the summit.
+    if (!celebrated && !dragging) maybeCelebrate(hereNow);
+    if (!dragging && !asked && !celebrated) maybeAsk();
     const { ctx, w, h } = fitCanvas(canvas);
     const sky = ctx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#5aa0d0");
@@ -326,8 +349,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       askSlope();
       return;
     }
-    if (level <= 1 && t > 0.2) askPeak();
-    else if (level === 2 && t > 0.45 && !askedKinds.has("mid") && !store.hasAsked("hike:mid")) askMid();
+    if (level <= 1 && !askedKinds.has("peakHint") && hikeWhichAskReady(here, hike) && !hikeAtOfficialSummit(here, hike)) {
+      askedKinds.add("peakHint");
+      talk("最高的地方在曲线最高的那个点。小人会自己走到那儿。你也可以用手拉他。");
+    }
+    if (level === 2 && t > 0.45 && !askedKinds.has("mid") && !store.hasAsked("hike:mid")) askMid();
     else if (level >= 3 && t > 0.3 && !askedKinds.has("temp") && !store.hasAsked("hike:temp")) askTemp();
     else if (level >= 5 && !askedKinds.has("which") && !store.hasAsked("hike:which:" + hike.id) && hikeWhichAskReady(here, hike)) askWhich();
   }
@@ -374,9 +400,34 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     afterReveal("hike", cont, hikeRevealOpts(hike, { force: true }));
   }
 
+  function resumeTrail() {
+    if (!running || celebrated) return;
+    asked = false;
+    quizKind = null;
+    s.querySelectorAll(".prompt").forEach((n) => n.remove());
+  }
+
+  function offerMidTrailContinue({ title, body, tone }) {
+    offerContinue(s, {
+      title,
+      body,
+      tone,
+      goHome,
+      actions: [
+        { label: "继续走到山顶", kind: "ok", onClick: () => resumeTrail() },
+        { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
+      ],
+    });
+    setTimeout(() => {
+      if (!running || celebrated || !asked) return;
+      resumeTrail();
+    }, HIKE_MID_QUIZ_RESUME_MS);
+  }
+
   function askPeak() {
     asked = true;
     quizKind = "peak";
+    askedKinds.add("peak");
     const box = promptBox("最高的地方在哪儿？", "把小人走到山顶。还没到的话，就再说一声。", [
       { label: "我走到山顶了", id: "done", icon: "⛰️" },
       { label: "还在走", id: "retry", icon: "🔄" },
@@ -385,6 +436,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
         box.remove();
         asked = false;
         quizKind = null;
+        askedKinds.add("peak");
         talk("继续走，找到曲线最高的那个点。");
         return;
       }
@@ -393,6 +445,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
         box.remove();
         asked = false;
         quizKind = null;
+        askedKinds.add("peak");
         toast("还没到山顶，再往上走走", 2600);
         talk("还没到山顶。再往上走走，找到最高的地方。");
         return;
@@ -423,16 +476,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
         box.remove();
         quizKind = null;
         asked = true;
-        afterReveal("hike", () => offerContinue(s, {
+        offerMidTrailContinue({
           title: c.ok ? "对了" : "是 " + Math.round(mid.elev) + " 米",
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
-          goHome,
-          actions: [
-            { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
-          ],
-        }), hikeRevealOpts(hike));
+        });
       }, 900);
     });
     s.append(box);
@@ -455,16 +503,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       setTimeout(() => {
         box.remove();
         quizKind = null;
-        afterReveal("hike", () => offerContinue(s, {
+        offerMidTrailContinue({
           title: c.ok ? "对了" : "会更冷",
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
-          goHome,
-          actions: [
-            { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
-          ],
-        }), hikeRevealOpts(hike));
+        });
       }, 900);
     });
     s.append(box);
@@ -492,16 +535,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
         afterReveal("hike", () => celebrateSummit(), hikeRevealOpts(hike));
         return;
       }
-      afterReveal("hike", () => offerContinue(s, {
+      offerMidTrailContinue({
         title: c.ok ? "对了，这是" + shortName : "这是" + shortName,
         body: line + "还可以继续走到山顶。",
         tone: c.ok ? "ok" : "no",
-        goHome,
-        actions: [
-          { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; quizKind = null; } },
-          { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
-        ],
-      }), hikeRevealOpts(hike));
+      });
     });
     s.append(box);
   }
@@ -522,16 +560,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       setTimeout(() => {
         box.remove();
         quizKind = null;
-        afterReveal("hike", () => offerContinue(s, {
+        offerMidTrailContinue({
           title: c.ok ? "对了" : "再看一眼",
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
-          goHome,
-          actions: [
-            { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
-          ],
-        }), hikeRevealOpts(hike));
+        });
       }, 900);
     });
     s.append(box);
