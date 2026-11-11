@@ -1,10 +1,45 @@
-import { sfx, talk, stopTalk } from "./audio.js";
+import { sfx, talk, stopTalk, unlockAudio, childSpeakLines } from "./audio.js";
 import { bi, isCopy, splitCopy, pairedAria, appendCopy, UI } from "./i18n.js";
 import { store } from "./store.js";
 import { MODE_META, CARD_TEMPLATES, resolveCard } from "./data.js";
 import { paintCardArt } from "./art.js";
 
 export const root = () => document.getElementById("app");
+
+/** How long a 6-year-old can actually read a right/wrong flash before it goes away. */
+export const QUIZ_FEEDBACK_MS = 2800;
+
+/** Visible tap-to-speak control beside child-facing text. Uses local speechSynthesis via talk(). */
+export function speakButton(zh, en, opts = {}) {
+  const lines = childSpeakLines(zh, en);
+  const aria = ["朗读 / Speak", lines.zh, lines.en].filter(Boolean).join(" · ");
+  return el("button", {
+    class: "speak-btn" + (opts.className ? " " + opts.className : ""),
+    type: "button",
+    title: "朗读 / Speak",
+    "aria-label": aria,
+    onClick: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      unlockAudio();
+      sfx.tap();
+      talk(lines.zh, lines.en, { force: true });
+    },
+  }, "🔊");
+}
+
+export function withSpeak(titleNode, zh, en, opts = {}) {
+  const lines = childSpeakLines(zh, en);
+  if (!lines.zh && !lines.en) return titleNode;
+  return el("div", { class: "speak-row" + (opts.className ? " " + opts.className : "") }, titleNode, speakButton(lines.zh, lines.en));
+}
+
+function copyLines(value, en) {
+  if (value && typeof value === "object" && !Array.isArray(value) && (value.zh != null || value.en != null)) {
+    return { zh: value.zh || "", en: value.en || en || "" };
+  }
+  return { zh: value || "", en: en || "" };
+}
 
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -49,7 +84,11 @@ export function topbar({ title, titleEn, sub, subEn, onBack, extra } = {}) {
       const subNode = isCopy(sub) || subEn ? bi(sub, subEn) : sub;
       chip.append(el("span", { class: "sub" }, subNode));
     }
-    bar.append(chip);
+    const tLines = copyLines(title, titleEn);
+    const sLines = sub ? copyLines(sub, subEn) : { zh: "", en: "" };
+    const speakZh = [tLines.zh, sLines.zh].filter(Boolean).join("。");
+    const speakEn = [tLines.en, sLines.en].filter(Boolean).join(". ");
+    bar.append(withSpeak(chip, speakZh, speakEn, { className: "title-speak" }));
   }
   bar.append(el("div", { class: "spacer" }));
   if (extra) bar.append(extra);
@@ -99,9 +138,16 @@ export function promptBox(title, body, choices, onPick, opts = {}) {
   const dock = opts.dock ? " dock-" + opts.dock : " dock-bottom";
   const compact = opts.compact ? " compact" : "";
   const extra = opts.className ? " " + opts.className : "";
+  const titleCopy = (isCopy(title) || opts.titleEn) ? { ...(isCopy(title) ? title : { zh: title }), en: (isCopy(title) ? title.en : opts.titleEn) } : title;
+  const bodyCopy = body && (isCopy(body) || opts.bodyEn) ? { ...(isCopy(body) ? body : { zh: body }), en: (isCopy(body) ? body.en : opts.bodyEn) } : body;
+  const tLines = copyLines(titleCopy, opts.titleEn);
+  const bLines = bodyCopy ? copyLines(bodyCopy, opts.bodyEn) : { zh: "", en: "" };
+  const speakZh = [tLines.zh, bLines.zh].filter(Boolean).join("。");
+  const speakEn = [tLines.en, bLines.en].filter(Boolean).join(". ");
+  const heading = el("h2", {}, titleCopy);
   const box = el("div", { class: "prompt" + dock + compact + extra },
-    el("h2", {}, (isCopy(title) || opts.titleEn) ? { ...(isCopy(title) ? title : { zh: title }), en: (isCopy(title) ? title.en : opts.titleEn) } : title),
-    body ? el("p", {}, (isCopy(body) || opts.bodyEn) ? { ...(isCopy(body) ? body : { zh: body }), en: (isCopy(body) ? body.en : opts.bodyEn) } : body) : null,
+    withSpeak(heading, speakZh, speakEn, { className: "prompt-speak" }),
+    body ? el("p", {}, bodyCopy) : null,
   );
   if (choices && choices.length) {
     const row = el("div", { class: "choices" });
@@ -135,6 +181,7 @@ const ABSTRACT_CARDS = new Set(["c-mid", "c-times10"]);
 export const ENDPOINT_CARD_IDS = new Set(["c-planck", "c-universe"]);
 
 export function maybeDropCard(mode, opts = {}) {
+  if (opts.skip) return null;
   const owned = new Set(store.get().cards.map((c) => c.id));
   let pool = CARD_TEMPLATES.filter((c) => c && c.mode === mode && !owned.has(c.id));
   if (Array.isArray(opts.allowOnly) && opts.allowOnly.length) {
@@ -192,17 +239,25 @@ export function dismissReveal(doc = typeof document !== "undefined" ? document :
 export function cardFacePair(template) {
   const t = resolveCard(template) || template || {};
   const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
+  const frontTitle = { zh: t.title || "", en: t.titleEn || "" };
+  const frontVal = t.valueEn ? { zh: t.value || "", en: t.valueEn } : (t.value || "");
+  const frontSpeakZh = [t.title, t.value].filter(Boolean).join("，");
+  const frontSpeakEn = [t.titleEn || t.title, t.valueEn || t.value].filter(Boolean).join(", ");
   const front = el("div", { class: "card-face card-front" },
     art,
-    el("div", { class: "k" }, UI.worldCard),
-    el("div", { class: "t" }, { zh: t.title || "", en: t.titleEn || "" }),
-    el("div", { class: "v" }, t.valueEn ? { zh: t.value || "", en: t.valueEn } : (t.value || "")),
+    withSpeak(el("div", { class: "k" }, UI.worldCard), frontSpeakZh, frontSpeakEn),
+    el("div", { class: "t" }, frontTitle),
+    el("div", { class: "v" }, frontVal),
     el("p", { class: "card-hint" }, UI.flipHint),
   );
+  const backTitle = { zh: t.backTitle || "再看一眼", en: t.backTitleEn || "Look again" };
+  const backNote = { zh: t.back || "这是你世界里的一个数。再点可以翻回去。", en: t.backEn || "This is a number from your world. Tap again to flip it back." };
+  const backSpeakZh = [backTitle.zh, backNote.zh].filter(Boolean).join("。");
+  const backSpeakEn = [backTitle.en, backNote.en].filter(Boolean).join(". ");
   const back = el("div", { class: "card-face card-back" },
-    el("div", { class: "k" }, UI.cardBack),
-    el("div", { class: "t" }, { zh: t.backTitle || "再看一眼", en: t.backTitleEn || "Look again" }),
-    el("p", { class: "card-back-note" }, { zh: t.back || "这是你世界里的一个数。再点可以翻回去。", en: t.backEn || "This is a number from your world. Tap again to flip it back." }),
+    withSpeak(el("div", { class: "k" }, UI.cardBack), backSpeakZh, backSpeakEn),
+    el("div", { class: "t" }, backTitle),
+    el("p", { class: "card-back-note" }, backNote),
   );
   return { art, front, back, template: t };
 }
@@ -279,7 +334,9 @@ export function offerContinue(host, { title, body, tone = "info", actions = [], 
   if (!host) return null;
   host.querySelectorAll(".continue-box").forEach((n) => n.remove());
   const box = el("div", { class: "prompt dock-bottom continue-box tone-" + tone });
-  if (title) box.append(el("h2", {}, isCopy(title) ? title : title));
+  const tLines = title ? copyLines(title) : { zh: "", en: "" };
+  const bLines = body ? copyLines(body) : { zh: "", en: "" };
+  if (title) box.append(withSpeak(el("h2", {}, isCopy(title) ? title : title), [tLines.zh, bLines.zh].filter(Boolean).join("。"), [tLines.en, bLines.en].filter(Boolean).join(". ")));
   if (body) box.append(el("p", {}, isCopy(body) ? body : body));
   const row = el("div", { class: "choices" });
   const all = actions.slice();

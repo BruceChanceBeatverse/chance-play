@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint, goToScaleJourney } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint, goToScaleJourney, QUIZ_FEEDBACK_MS } from "../ui.js";
 import { hikeTempC, formatTemp, clamp } from "../geo.js";
 import { shouldShowHikePicker, resolveHike, renderHikePicker, switchRouteButton, FIRST_PLAY_HIKE_ID } from "../pickers.js";
 import { bi, UI, clampSeekToBeats } from "../i18n.js";
@@ -204,6 +204,7 @@ export const HIKE_MOUNTAIN_CARDS = {
   huangshan: "c-huangshan",
   fuji: "c-fuji",
   dolomites: "c-dolomites",
+  everest: "c-everest",
 };
 
 export function hikeTrailNote(hike) {
@@ -213,6 +214,9 @@ export function hikeTrailNote(hike) {
   }
   if (hike.id === "dolomites" || hike.livedAbility) {
     return { zh: "这座平顶山像你认识的大板凳山，斯西利亚尔（Schlern / Sciliar）。一次大约 12 公里，爬升大约 900 米。不是 2,563 米的登顶，也不是一条量过的足迹。", en: "This flat top looks like the table-top mountain you know, 大板凳山, Schlern / Sciliar. About 12 km, with about 900 m of climbing. Not a 2,563 m summit, and not a measured GPS track." };
+  }
+  if (hike.id === "everest" || hike.knownOnly) {
+    return { zh: "你认识珠穆朗玛峰，但没有爬过。官方高度 8,848.86 米，常说 8,849 米。这条线只是用来看看它有多高，不是你自己走的路。", en: "You know Mount Everest, but you have not climbed it. Officially 8,848.86 m, commonly 8,849 m. This line is only to see how high it is, not a path you have walked." };
   }
   if (hike.id === "sheshan" || hike.contrastOnly) {
     return { zh: "上海附近一座大约 99 米的小山，用来比一比。不是你爬过的山。", en: "A small hill near Shanghai, about 99 m, for contrast. Not a mountain you have climbed." };
@@ -236,6 +240,19 @@ export function hikeCelebrateCopy(hike, officialPeak) {
       talkEn: "You finished it! About " + km + " km, with about " + gain + " m of climbing. This flat top looks like 大板凳山, Schlern / Sciliar, the mountain you know. It is not a 2,563 m summit, and not a measured GPS track.",
       smallZh: name + "，大约 " + km + " 公里，爬升大约 " + gain + " 米",
       smallEn: nameEn + ", about " + km + " km, about " + gain + " m of climbing",
+    };
+  }
+  if (hike && (hike.id === "everest" || hike.knownOnly)) {
+    const peak = Math.round(officialPeak);
+    return {
+      bannerZh: "你认识这座山",
+      bannerEn: "You know this mountain",
+      title: { zh: "你认识这座山，但没有爬过", en: "You know this mountain, but have not climbed it" },
+      body: { zh: "珠穆朗玛峰是地球上最高的山。官方高度 8,848.86 米，常说 8,849 米。大约是富士山的两倍多。你认识它，但没有爬过。这是示例山路，不是你自己走的足迹。", en: "Everest is the highest mountain on Earth. Officially 8,848.86 m, commonly 8,849 m. A little more than twice as high as Fuji. You know it, but you have not climbed it. This is a sample path, not your own GPS track." },
+      talkZh: "这是珠穆朗玛峰，最高 " + peak + " 米。你认识这座山，但没有爬过。",
+      talkEn: "This is Mount Everest, " + peak + " m at the top. You know this mountain, but you have not climbed it.",
+      smallZh: name + "，最高 " + peak + " 米。你认识，但没有爬过",
+      smallEn: nameEn + ", " + peak + " m at the top. You know it, but have not climbed it",
     };
   }
   const peak = Math.round(officialPeak);
@@ -624,7 +641,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
         });
-      }, 1400);
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk({ zh: "走到一半，现在大约有多高？先猜。", en: "About how high are we at the halfway point? Guess first." });
@@ -654,7 +671,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
         });
-      }, 900);
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk("爬得越高，外面是更冷还是更暖？");
@@ -715,7 +732,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
         });
-      }, 900);
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk(q.talk);

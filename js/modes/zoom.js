@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer, dismissReveal, isRevealOpen } from "../ui.js";
+import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer, dismissReveal, isRevealOpen, QUIZ_FEEDBACK_MS } from "../ui.js";
 import { DEFAULT_PROFILE } from "../data.js";
 import { log10, pow10, clamp, formatNumber } from "../geo.js";
 import { drawGlobe, drawMoon, drawSun, drawMountainPair, drawEiffelTower, drawDuomoCathedral, drawBundSkyline, drawTableMountain } from "../art.js";
@@ -537,7 +537,7 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
       markAnswer(box, c, !!c.ok);
       const line = c.ok ? "对。每一层都用上一层的东西来量。" : "正确的顺序是：蚂蚁，我，山，去东京。";
       talk(line);
-      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk(zoomL1OrderTalk(opts));
@@ -561,7 +561,7 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
         ? { zh: "对。1 米到 10 米、到 100 米、再到 1,000 米，三个 10 倍，就到你能爬的那种山了。富士山 3,776 米，还要再高一点。", en: "Yes. 1 m to 10 m to 100 m to 1,000 m is three times ten — that's a mountain you can climb. Fuji is 3,776 m, a little higher still." }
         : { zh: "从大约 1 米到大约 1,000 米，是三个 10 倍。100 米更像米兰大教堂。富士山是 3,776 米。", en: "From about 1 m to about 1,000 m is three times ten. 100 m is more like the Milan Duomo. Fuji is 3,776 m." };
       talk(line);
-      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk({ zh: "从你的身高到富士山，大约差几个 10 倍？", en: "From your height to Mount Fuji, about how many times-ten is that?" });
@@ -580,7 +580,7 @@ export function renderZoom(app, { goHome, onDone, stopId } = {}) {
       markAnswer(box, c, !!c.ok);
       const line = c.ok ? "对。大约 5 倍，还不到一个 10 倍。" : "大约 5 倍，还不到一个 10 倍。";
       talk(line);
-      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk("去巴黎比去东京，差几个 10 倍？");

@@ -381,6 +381,50 @@ export const NAMED_SCALE_STOPS = [
     source: "PVG–CDG WGS-84 geodesic ≈ 9,287 km",
   },
   {
+    id: "athens", name: "上海 → 雅典", nameEn: "Shanghai → Athens", metres: 8_575_665, kind: "flight",
+    shown: "大约 8,576 公里", shownEn: "about 8,576 km",
+    blurb: "大圆航线大约 8,576 公里。这是你坐过的一趟。",
+    blurbEn: "The great-circle route is about 8,576 km. This is a flight you have taken.",
+    correlate: "比去东京远很多，比去巴黎稍近一点。",
+    correlateEn: "Much farther than Tokyo, a little closer than Paris.",
+    lingerMode: "flight", tripId: "pvg-ath", invites: ["numberline"],
+    familiar: true, emoji: "✈️",
+    source: "PVG–ATH WGS-84 geodesic ≈ 8,576 km",
+  },
+  {
+    id: "santorini", name: "上海 → 圣托里尼", nameEn: "Shanghai → Santorini", metres: 8_540_321, kind: "flight",
+    shown: "大约 8,540 公里", shownEn: "about 8,540 km",
+    blurb: "大圆航线大约 8,540 公里。这是你坐过的一趟。",
+    blurbEn: "The great-circle route is about 8,540 km. This is a flight you have taken.",
+    correlate: "和去雅典差不多远，也是你坐过的飞机。",
+    correlateEn: "About as far as Athens, and also a flight you have taken.",
+    lingerMode: "flight", tripId: "pvg-jtr", invites: ["numberline"],
+    familiar: true, emoji: "✈️",
+    source: "PVG–JTR WGS-84 geodesic ≈ 8,540 km",
+  },
+  {
+    id: "cologne", name: "上海 → 科隆", nameEn: "Shanghai → Cologne", metres: 8_901_836, kind: "flight",
+    shown: "大约 8,902 公里", shownEn: "about 8,902 km",
+    blurb: "大圆航线大约 8,902 公里。这是你坐过的一趟。",
+    blurbEn: "The great-circle route is about 8,902 km. This is a flight you have taken.",
+    correlate: "和去巴黎差不多远，也是你坐过的飞机。",
+    correlateEn: "About as far as Paris, and also a flight you have taken.",
+    lingerMode: "flight", tripId: "pvg-cgn", invites: ["numberline"],
+    familiar: true, emoji: "✈️",
+    source: "PVG–CGN WGS-84 geodesic ≈ 8,902 km",
+  },
+  {
+    id: "lax", name: "上海 → 洛杉矶", nameEn: "Shanghai → Los Angeles", metres: 10_435_865, kind: "flight",
+    shown: "大约 10,436 公里", shownEn: "about 10,436 km",
+    blurb: "大圆航线大约 10,436 公里，要飞过太平洋。这是你坐过的一趟。",
+    blurbEn: "The great-circle route is about 10,436 km, across the Pacific. This is a flight you have taken.",
+    correlate: "比去巴黎还远一点，是从太平洋过去的。",
+    correlateEn: "A little farther than Paris, going across the Pacific.",
+    lingerMode: "flight", tripId: "pvg-lax", invites: ["numberline"],
+    familiar: true, emoji: "✈️",
+    source: "PVG–LAX WGS-84 geodesic ≈ 10,436 km",
+  },
+  {
     id: "earth-diameter", name: "地球有多宽", metres: EARTH_DIAMETER_M, kind: "earth",
     shown: "大约 12,742 公里",
     blurb: "地球从这边到那边，大约 12,742 公里。比上海到巴黎还长一点。",
@@ -686,7 +730,7 @@ export const SCALE_WAYSTATIONS = [
 ];
 
 const LAST_FELT_SMALL = "蚂蚁";
-const LAST_FELT_FAR = "上海到巴黎的飞机";
+const LAST_FELT_FAR = "上海到洛杉矶的飞机";
 
 function bridgeForDecade(exp) {
   if (exp <= -3) {
@@ -702,7 +746,7 @@ function bridgeForDecade(exp) {
     return "用外滩的楼、你一次能爬的高度、斯西利亚尔和富士山来比。";
   }
   if (exp <= 7) {
-    return "用你坐过的上海到东京、上海到巴黎来比。";
+    return "用你坐过的上海到东京、上海到巴黎、上海到洛杉矶、雅典、圣托里尼和科隆来比。";
   }
   return "比" + LAST_FELT_FAR + "还远。那是你飞过最远的路。";
 }
@@ -762,7 +806,7 @@ function bridgeForDecadeEn(exp) {
   if (exp < 0) return "Getting close to things you can see. A little higher, and you reach ants and your finger.";
   if (exp <= 2) return "Compare it with your height, the walks you do, the Duomo, and the Eiffel Tower.";
   if (exp <= 4) return "Compare it with the Bund towers, the height you can climb in one go, Schlern, and Fuji.";
-  if (exp <= 7) return "Compare it with the flights you have taken from Shanghai to Tokyo and to Paris.";
+  if (exp <= 7) return "Compare it with the flights you have taken from Shanghai to Tokyo, Paris, Los Angeles, Athens, Santorini, and Cologne.";
   return "Farther than the flight from Shanghai to Paris, the farthest you have flown.";
 }
 

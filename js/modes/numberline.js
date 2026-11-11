@@ -3,14 +3,37 @@ import { talk, sfx } from "../audio.js";
 import { el, screen, topbar, fitCanvas, bindDrag, afterReveal, promptBox, offerContinue } from "../ui.js";
 import { clamp, formatNumber } from "../geo.js";
 import { drawPlane, drawWater } from "../art.js";
-import { routeDistanceKm } from "../data.js";
+import { routeDistanceKm, LIVED_FLIGHT_ROUTES, routeMidLabel } from "../data.js";
+import { formatKm, formatKmEn } from "../geo.js";
+
+export function livedNumberlineRoutes() {
+  return LIVED_FLIGHT_ROUTES.map((r) => {
+    const mid = routeMidLabel(r);
+    return {
+      ...r,
+      mid: mid.zh,
+      midEn: mid.en,
+    };
+  });
+}
+
+export function numberlineRouteForVariant(variant = 0) {
+  const routes = livedNumberlineRoutes();
+  const i = ((Number(variant) % routes.length) + routes.length) % routes.length;
+  return routes[i] || routes[0];
+}
 
 export function rangeFor(level, variant = 0) {
   if (level <= 1) {
-    const paris = (Number(variant) % 2) === 1;
-    return paris
-      ? { min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "", route: { start: "上海", mid: "海中间", end: "巴黎" }, subtitle: "这是去巴黎的航线：0 是上海，10 是巴黎" }
-      : { min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "", route: { start: "上海", mid: "海中间", end: "东京" }, subtitle: "这是去东京的航线：0 是上海，10 是东京" };
+    const lived = numberlineRouteForVariant(variant);
+    const mid = lived.mid || routeMidLabel(lived).zh;
+    return {
+      min: 0, max: 10, mid: true, ticks: [0, 5, 10], unit: "",
+      route: { start: "上海", mid, midEn: lived.midEn, end: lived.end, endEn: lived.endEn },
+      subtitle: "这是去" + lived.end + "的航线：0 是上海，10 是" + lived.end,
+      subtitleEn: "This is the route to " + lived.endEn + ": 0 is Shanghai, 10 is " + lived.endEn,
+      livedRoute: lived,
+    };
   }
   if (level === 2) return { min: 0, max: 100, mid: true, ticks: [0, 50, 100], unit: "", route: { start: "家", mid: "一半", end: "更远" }, subtitle: "0 到 100 的一条路" };
   if (level === 3) return { min: 0, max: 100, mid: false, ticks: [0, 100], unit: "", route: { start: "家", end: "更远" }, subtitle: "0 到 100，中间先不标" };
@@ -63,7 +86,7 @@ export function renderNumberline(app, { goHome, onDone, variant = 0 } = {}) {
   s.append(hint);
 
   let dragging = false;
-  let dragX = 0.5;
+  let dragX = numberlineStartX(range, targets[current].value);
   let revealed = false;
 
   function layout(w, h) {
@@ -200,7 +223,7 @@ export function renderNumberline(app, { goHome, onDone, variant = 0 } = {}) {
     sfx.soft();
     if (current < targets.length - 1) {
       current += 1;
-      dragX = 0.5;
+      dragX = numberlineStartX(range, targets[current].value);
       hint.querySelector("h2").textContent = "再把 " + targets[current].name + " 放上去";
       talk("再把" + targets[current].name + "放到航线上。");
     } else {
@@ -223,7 +246,7 @@ export function renderNumberline(app, { goHome, onDone, variant = 0 } = {}) {
     const btnRow = el("div", { class: "choices" },
       el("button", { class: "choice ok", onClick: () => {
         hint.remove();
-        afterReveal("numberline", () => offerContinue(s, { title: "再放一个？", body: "还可以再玩一条航线。", tone: "ok", goHome, actions: [{ label: "再玩一次", kind: "ok", onClick: () => renderNumberline(app, { goHome, onDone, variant: variant + 1 }) }] }));
+        afterReveal("numberline", () => offerContinue(s, { title: "再放一个？", body: "还可以再玩一条航线。", tone: "ok", goHome, actions: [{ label: "再玩一次", kind: "ok", onClick: () => renderNumberline(app, { goHome, onDone, variant: variant + 1 }) }] }), numberlineRevealOpts(range));
       } }, "下一步"),
     );
     hint.append(btnRow);
@@ -277,6 +300,46 @@ export function numberlineMidLabelLayout(y) {
 }
 
 /** L1 0–10: an exact drop of 5 on the mark 6 must be a miss. */
+
+/** Start clearly away from the target so a tiny drag cannot score as correct. */
+export function numberlineStartX(range, target) {
+  const min = Number(range && range.min);
+  const max = Number(range && range.max);
+  const span = max - min;
+  const level = Number(range && range.level);
+  const tol = 0.08; // matches L1 window; keep start outside even if tighter
+  if (!(span > 0) || !Number.isFinite(target)) return 0.12;
+  const t = (target - min) / span;
+  const windowLow = t - tol;
+  const windowHigh = t + tol;
+  // Prefer a start near the left, clearly not in the success window.
+  const left = 0.12;
+  if (left < windowLow - 0.02) return left;
+  const right = 0.88;
+  if (right > windowHigh + 0.02) return right;
+  return left < 0.5 ? 0.05 : 0.95;
+}
+
+export function numberlineCardIdFor(rangeOrRoute) {
+  const lived = (rangeOrRoute && rangeOrRoute.livedRoute) || rangeOrRoute;
+  if (lived && lived.cardId) return lived.cardId;
+  const end = (rangeOrRoute && rangeOrRoute.route && rangeOrRoute.route.end) || (lived && lived.end);
+  const hit = LIVED_FLIGHT_ROUTES.find((r) => r.end === end);
+  return hit ? hit.cardId : "c-mid";
+}
+
+export function numberlineRevealOpts(range, extra = {}) {
+  const prefer = numberlineCardIdFor(range);
+  const opts = { ...extra };
+  if (prefer) {
+    opts.prefer = prefer;
+    opts.allowOnly = [prefer];
+    // Lived halfway cards must actually appear (maybeDropCard otherwise skips ~72%).
+    if (opts.force === undefined && prefer !== "c-mid") opts.force = true;
+  }
+  return opts;
+}
+
 export function numberlineScoreOk(level, placed, target, min, max) {
   const span = max - min;
   if (!(span > 0) || !Number.isFinite(placed) || !Number.isFinite(target)) return false;

@@ -5,15 +5,49 @@ import { UI } from "../i18n.js";
 import { airportByCode, routeDistanceKm } from "../data.js";
 import { formatKm, formatHours, clamp } from "../geo.js";
 
-function tracks() {
+const RACE_CARD_IDS = {
+  walk: "c-walk",
+  bike: "c-bike",
+  ski: "c-ski",
+  car: "c-car",
+  hsr: "c-hsr",
+  plane: "c-plane",
+};
+
+export function raceCardIdFor(racer) {
+  const id = typeof racer === "string" ? racer : racer && racer.id;
+  return RACE_CARD_IDS[id] || null;
+}
+
+/** Prefer the card for the racer just raced; never award a walk card when walk was not in the race. */
+export function raceRevealOpts({ winner, racers, featured, solo } = {}, extra = {}) {
+  const preferId = (solo && solo.id) || (featured && featured.id) || (winner && winner.id);
+  const prefer = raceCardIdFor(preferId);
+  const allowOnly = [...new Set((racers || []).map((r) => raceCardIdFor(r)).filter(Boolean))];
+  const opts = { ...extra };
+  if (prefer) opts.prefer = prefer;
+  if (allowOnly.length) opts.allowOnly = allowOnly;
+  else if (prefer) opts.allowOnly = [prefer];
+  return opts;
+}
+
+export function tracks() {
   const p = store.get().profile;
   const tokyo = routeDistanceKm("PVG", "HND");
   const paris = routeDistanceKm("PVG", "CDG");
+  const lax = routeDistanceKm("PVG", "LAX");
+  const ath = routeDistanceKm("PVG", "ATH");
+  const jtr = routeDistanceKm("PVG", "JTR");
+  const cgn = routeDistanceKm("PVG", "CGN");
   return [
     { id: "school", name: "家到学校", km: p.schoolKm, assumption: true },
     { id: "airport", name: "开车去机场", km: p.cityAirportKm, assumption: true },
     { id: "tokyo", name: "上海 → 东京", km: tokyo, assumption: false },
     { id: "paris", name: "上海 → 巴黎", km: paris, assumption: false },
+    { id: "lax", name: "上海 → 洛杉矶", km: lax, assumption: false },
+    { id: "ath", name: "上海 → 雅典", km: ath, assumption: false },
+    { id: "jtr", name: "上海 → 圣托里尼", km: jtr, assumption: false },
+    { id: "cgn", name: "上海 → 科隆", km: cgn, assumption: false },
   ];
 }
 
@@ -22,14 +56,39 @@ function pickTrack(level) {
   if (level <= 1) return all[0];
   if (level === 2) return all[1];
   if (level === 3) return all[2];
-  return all[level >= 5 ? 3 : 2];
+  if (level === 4) return all[2];
+  const lived = all.filter((t) => !t.assumption);
+  return lived[Math.min(level - 3, lived.length - 1)] || all[2];
 }
 
 function racersFor(level) {
   const all = store.get().racers;
   if (level <= 1) return all.filter((r) => r.id === "bike" || r.id === "car");
-  if (level === 2) return all.filter((r) => r.id === "car" || r.id === "hsr" || r.id === "bike");
+  // Level 2: include ski so a 6-year-old can see it, still no plane on the short track.
+  if (level === 2) return all.filter((r) => r.id === "bike" || r.id === "car" || r.id === "ski" || r.id === "hsr");
   return all;
+}
+
+export function raceHasFastRacer(racers) {
+  return (racers || []).some((r) => r && (r.id === "plane" || r.id === "hsr") && r.kmh >= 300);
+}
+
+export function raceHasPlane(racers) {
+  return (racers || []).some((r) => r && r.id === "plane");
+}
+
+/** When the plane (or a much faster racer) is racing, use a lived flight track, not the 2 km school hop. */
+export function raceTrackForRacers(track, racers, all = tracks()) {
+  const short = !track || track.id === "school" || track.id === "airport" || Number(track.km) < 100;
+  if (short && raceHasPlane(racers)) {
+    return all.find((t) => t.id === "tokyo") || all.find((t) => !t.assumption) || track;
+  }
+  return track;
+}
+
+export function livedRaceTrackId(track) {
+  if (track && !track.assumption) return track.id;
+  return "tokyo";
 }
 
 /** CSS-pixel layout of the track. Every lane and the 起点/终点 labels
@@ -56,9 +115,21 @@ export function raceChildCopy(track, racers) {
 }
 
 /** Name the route just raced — never say Tokyo after a Paris race. */
+export function raceDestName(track) {
+  if (!track) return "";
+  if (track.id === "paris") return "巴黎";
+  if (track.id === "tokyo") return "东京";
+  if (track.id === "lax") return "洛杉矶";
+  if (track.id === "ath") return "雅典";
+  if (track.id === "jtr") return "圣托里尼";
+  if (track.id === "cgn") return "科隆";
+  return track.name || "";
+}
+
 export function raceImpossibleNote(track) {
-  if (!track || (track.id !== "tokyo" && track.id !== "paris")) return "";
-  const dest = track.id === "paris" ? "巴黎" : "东京";
+  if (!track || track.assumption) return "";
+  const dest = raceDestName(track);
+  if (!dest) return "";
   return " 这也是为什么骑自行车其实去不了" + dest + "。";
 }
 
@@ -82,10 +153,11 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false, so
   const s = screen();
   s.classList.add("mode-race");
   const level = store.level("race");
-  const track = tracks().find((t) => t.id === trackId) || pickTrack(level);
   const pack = store.get().racers;
   const solo = soloId ? racerById(soloId, pack) : null;
   const racers = solo ? [solo] : (allRacers ? pack : racersFor(level));
+  const requested = tracks().find((t) => t.id === trackId) || pickTrack(level);
+  const track = raceTrackForRacers(requested, racers);
   const times = racers.map((r) => ({ ...r, hours: track.km / r.kmh }));
   times.sort((a, b) => a.hours - b.hours);
   const winner = times[0];
@@ -93,7 +165,7 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false, so
   const canvas = el("canvas", { class: "fill", "aria-label": "速度比赛" });
   s.append(canvas);
   const copy = raceChildCopy(track, racers);
-  const destName = track.id === "paris" ? "巴黎" : track.id === "tokyo" ? "东京" : track.name;
+  const destName = raceDestName(track) || track.name;
   s.append(topbar({
     title: solo ? ("骑车去" + destName) : "速度大比拼",
     sub: copy.dist,
@@ -302,22 +374,23 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false, so
           body: solo
             ? { zh: "骑自行车去" + destName + "大约要 " + formatHours(winner.hours) + "。这是按假设速度、不停歇算的。也可以再比一次速度。",
                 en: "Biking to " + destName + " would take about " + formatHours(winner.hours) + ". That uses an assumed speed with no stops. You can also race speeds again." }
-            : (track.id === "paris"
-              ? { zh: "可以再比一次，或者看看骑车去巴黎要多久。", en: "You can race again, or see how many days to bike to Paris." }
-              : { zh: "可以加上飞机，或者骑车去东京看看要几天。", en: "You can add a plane, or see how many days to bike to Tokyo." }),
+            : { zh: "可以加上飞机在去" + (track.assumption ? "东京" : destName) + "的路上再比，或者看看骑车去那里要多久。",
+                en: "You can add a plane and race on the way to " + (track.assumption ? "Tokyo" : destName) + ", or see how many days to bike there." },
           tone: "ok",
           goHome,
           actions: solo
             ? [
                 { label: "再看一次", labelEn: "Watch again", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, soloId: "bike" }) },
-                { label: "加上飞机再比", labelEn: "Race again with a plane", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+                { label: "加上飞机再比", labelEn: "Race again with a plane", onClick: () => renderRace(app, { goHome, onDone, trackId: livedRaceTrackId(track), allRacers: true }) },
               ]
             : [
-                { label: "加上飞机再比", labelEn: "Race again with a plane", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
-                { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", labelEn: track.id === "paris" ? "Bike to Paris" : "Bike to Tokyo", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", soloId: "bike" }) },
-                { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", labelEn: track.id === "paris" ? "Compare on the way to Tokyo" : "Compare on the way to Paris", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
+                { label: "加上飞机再比", labelEn: "Race again with a plane", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: livedRaceTrackId(track), allRacers: true }) },
+                { label: "骑车去" + (track.assumption ? "东京" : destName), labelEn: "Bike to " + (track.assumption ? "Tokyo" : destName), onClick: () => renderRace(app, { goHome, onDone, trackId: livedRaceTrackId(track), soloId: "bike" }) },
+                { label: track.id === "paris" || track.id === "lax" || track.id === "ath" || track.id === "jtr" || track.id === "cgn" ? "去东京比一比" : "去巴黎比一比",
+                  labelEn: track.id === "paris" || track.id === "lax" || track.id === "ath" || track.id === "jtr" || track.id === "cgn" ? "Compare on the way to Tokyo" : "Compare on the way to Paris",
+                  onClick: () => renderRace(app, { goHome, onDone, trackId: (track.id === "paris" || track.id === "lax" || track.id === "ath" || track.id === "jtr" || track.id === "cgn") ? "tokyo" : (track.id === "tokyo" ? "paris" : "lax"), allRacers: true }) },
               ],
-        }));
+        }), raceRevealOpts({ winner, racers, featured: winner, solo }));
       },
     );
     s.append(box);

@@ -339,10 +339,70 @@ export function formatNumber(n, digits = 0) {
   return num.toLocaleString("zh-CN", { maximumFractionDigits: d, minimumFractionDigits: d });
 }
 
-/** Equirectangular projection helpers. */
+/** Shift a longitude by ±360° so it stays continuous with a reference longitude. */
+export function unwrapLongitude(lon, refLon) {
+  let x = Number(lon);
+  const ref = Number(refLon);
+  if (!Number.isFinite(x) || !Number.isFinite(ref)) return lon;
+  while (x - ref > 180) x -= 360;
+  while (x - ref < -180) x += 360;
+  return x;
+}
+
+/** Make a great-circle (or any lon/lat) path continuous, including Pacific / antimeridian crossings. */
+export function unwrapPathPoints(pts) {
+  const list = Array.isArray(pts) ? pts : [];
+  if (!list.length) return [];
+  const out = [{ lat: list[0].lat, lon: list[0].lon }];
+  for (let i = 1; i < list.length; i++) {
+    out.push({ lat: list[i].lat, lon: unwrapLongitude(list[i].lon, out[i - 1].lon) });
+  }
+  return out;
+}
+
+/** Largest adjacent longitude step before unwrapping. A dateline jump is ~360°, a short Pacific hop is small. */
+export function pathMaxLonJump(pts) {
+  const list = Array.isArray(pts) ? pts : [];
+  let max = 0;
+  for (let i = 1; i < list.length; i++) {
+    const d = Math.abs(Number(list[i].lon) - Number(list[i - 1].lon));
+    if (Number.isFinite(d)) max = Math.max(max, d);
+  }
+  return max;
+}
+
+/** Place a longitude into the same 360° window as the view, so west-coast America can sit at ~242° on a Pacific map. */
+export function wrapLonIntoView(lon, view) {
+  if (!view || !Number.isFinite(view.lon0) || !Number.isFinite(view.lon1)) return lon;
+  return unwrapLongitude(lon, (view.lon0 + view.lon1) / 2);
+}
+
+/** Bounding box of a route in unwrapped longitude space, padded for a map view. */
+export function routeViewBounds(pts, { padLonMin = 8, padLatMin = 6, padLonFrac = 0.25, padLatFrac = 0.4 } = {}) {
+  const u = unwrapPathPoints(pts);
+  if (!u.length) return { lon0: -180, lon1: 180, lat0: -90, lat1: 90, points: [] };
+  let lon0 = u[0].lon, lon1 = u[0].lon, lat0 = u[0].lat, lat1 = u[0].lat;
+  for (const p of u) {
+    lon0 = Math.min(lon0, p.lon);
+    lon1 = Math.max(lon1, p.lon);
+    lat0 = Math.min(lat0, p.lat);
+    lat1 = Math.max(lat1, p.lat);
+  }
+  const padLon = Math.max(padLonMin, (lon1 - lon0) * padLonFrac);
+  const padLat = Math.max(padLatMin, (lat1 - lat0) * padLatFrac);
+  return { lon0: lon0 - padLon, lon1: lon1 + padLon, lat0: lat0 - padLat, lat1: lat1 + padLat, points: u };
+}
+
+/** True when the short path between two longitudes crosses the antimeridian. */
+export function crossesAntimeridian(lon1, lon2) {
+  return Math.abs(unwrapLongitude(lon2, lon1) - lon1) !== Math.abs(lon2 - lon1) || Math.abs(lon2 - lon1) > 180;
+}
+
+/** Equirectangular projection helpers. Longitudes are wrapped into the view so a Pacific crossing stays one continuous short path. */
 export function lonLatToXY(lon, lat, w, h, view) {
   const { lon0, lon1, lat0, lat1 } = view;
-  const x = ((lon - lon0) / (lon1 - lon0)) * w;
+  const u = wrapLonIntoView(lon, view);
+  const x = ((u - lon0) / (lon1 - lon0)) * w;
   const y = ((lat1 - lat) / (lat1 - lat0)) * h;
   return { x, y };
 }

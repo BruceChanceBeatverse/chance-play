@@ -107,6 +107,10 @@ export const UI = {
   compareSpeed: { zh: "比一比速度", en: "Compare speeds" },
   flyTokyo: { zh: "飞去东京", en: "Fly to Tokyo" },
   flyParis: { zh: "飞去巴黎", en: "Fly to Paris" },
+  flyLax: { zh: "飞去洛杉矶", en: "Fly to Los Angeles" },
+  flyAthens: { zh: "飞去雅典", en: "Fly to Athens" },
+  flySantorini: { zh: "飞去圣托里尼", en: "Fly to Santorini" },
+  flyCologne: { zh: "飞去科隆", en: "Fly to Cologne" },
   seeDuomo: { zh: "去看米兰大教堂", en: "See the Milan Duomo" },
   seeNumberline: { zh: "放到数轴上看", en: "See it on the number line" },
   rideElevator: { zh: "坐十倍电梯", en: "Ride the times-ten elevator" },
@@ -182,7 +186,15 @@ export function lingerAutoHold(stop, { close = false, auto = false, releasedId =
 export function lingerButtonCopy(stop, mode) {
   const kind = mode || (stop && stop.lingerMode);
   if (!kind) return { zh: "停一停", en: "Stop here" };
-  if (kind === "flight") return (stop && (stop.id === "paris" || stop.tripId === "pvg-cdg")) ? UI.flyParis : UI.flyTokyo;
+  if (kind === "flight") {
+    const id = stop && (stop.tripId || stop.id);
+    if (id === "pvg-cdg" || id === "paris") return UI.flyParis;
+    if (id === "pvg-lax" || id === "lax") return UI.flyLax;
+    if (id === "pvg-ath" || id === "athens") return UI.flyAthens;
+    if (id === "pvg-jtr" || id === "santorini") return UI.flySantorini;
+    if (id === "pvg-cgn" || id === "cologne") return UI.flyCologne;
+    return UI.flyTokyo;
+  }
   if (kind === "hike") return UI.climbThis;
   if (kind === "race") return UI.compareSpeed;
   if (kind === "cosmos") return UI.seeLight;

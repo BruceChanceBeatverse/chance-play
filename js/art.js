@@ -3,7 +3,7 @@
  * Schematic art — richer than a wireframe, not a satellite photograph.
  */
 import { eachRing } from "./coasts.js";
-import { lonLatToXY, clamp, lerp, orthographic, greatCirclePoints } from "./geo.js";
+import { lonLatToXY, clamp, lerp, orthographic, greatCirclePoints, routeViewBounds, unwrapPathPoints } from "./geo.js";
 import { airportByCode } from "./data.js";
 
 /** Canvas gradients throw if any component is NaN/Infinity. Skip those draws. */
@@ -393,10 +393,21 @@ export function cardArtKind(id) {
     case "c-tokyo": return "route-hnd";
     case "c-paris":
     case "c-paris-flight": return "route-cdg";
-    case "c-route": return "halfway-line";
+    case "c-lax": return "route-lax";
+    case "c-ath": return "route-ath";
+    case "c-jtr": return "route-jtr";
+    case "c-cgn": return "route-cgn";
+    case "c-route":
+    case "c-route-paris":
+    case "c-route-lax":
+    case "c-route-ath":
+    case "c-route-jtr":
+    case "c-route-cgn": return "halfway-line";
     case "c-lapse": return "sky-alt";
     case "c-walk": return "racer-walk";
     case "c-bike": return "racer-bike";
+    case "c-ski": return "racer-ski";
+    case "c-car": return "racer-car";
     case "c-plane": return "racer-plane";
     case "c-hsr": return "hsr";
     case "c-sheshan": return "hill";
@@ -448,11 +459,17 @@ export function paintCardArt(canvas, template = {}) {
   const kind = cardArtKind(template.id || "");
   if (kind === "route-hnd") paintRouteThumb(ctx, w, h, "PVG", "HND", { lon0: 110, lon1: 150, lat0: 20, lat1: 46 });
   else if (kind === "route-cdg") paintRouteThumb(ctx, w, h, "PVG", "CDG", { lon0: 0, lon1: 140, lat0: 10, lat1: 60 });
+  else if (kind === "route-lax") paintRouteThumb(ctx, w, h, "PVG", "LAX");
+  else if (kind === "route-ath") paintRouteThumb(ctx, w, h, "PVG", "ATH");
+  else if (kind === "route-jtr") paintRouteThumb(ctx, w, h, "PVG", "JTR");
+  else if (kind === "route-cgn") paintRouteThumb(ctx, w, h, "PVG", "CGN");
   else if (kind === "halfway-line") paintHalfwayThumb(ctx, w, h);
   else if (kind === "sky-alt") paintSkyAlt(ctx, w, h);
   else if (kind === "racer-walk") paintRacerThumb(ctx, w, h, "🚶", "#c9f0a8");
   else if (kind === "racer-bike") paintRacerThumb(ctx, w, h, "🚲", "#7dffb3");
   else if (kind === "racer-plane") paintRacerThumb(ctx, w, h, "✈️", "#5ce1e6");
+  else if (kind === "racer-ski") paintRacerThumb(ctx, w, h, "⛷️", "#9ad4ff");
+  else if (kind === "racer-car") paintRacerThumb(ctx, w, h, "🚗", "#ffd56a");
   else if (kind === "hsr") paintHsrThumb(ctx, w, h);
   else if (kind === "hill") paintHillThumb(ctx, w, h);
   else if (kind === "huangshan") paintHuangshanThumb(ctx, w, h);
@@ -480,7 +497,12 @@ export function paintRouteThumb(ctx, w, h, fromCode, toCode, view) {
   const from = airportByCode(fromCode);
   const to = airportByCode(toCode);
   if (!from || !to) { fillSky(ctx, w, h); return; }
-  const pts = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 48);
+  const raw = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 48);
+  const pts = unwrapPathPoints(raw);
+  if (!view) {
+    const bounds = routeViewBounds(raw);
+    view = { lon0: bounds.lon0, lon1: bounds.lon1, lat0: bounds.lat0, lat1: bounds.lat1 };
+  }
   drawWater(ctx, w, h, view);
   drawLand(ctx, w, h, view);
   const xy = pts.map((p) => lonLatToXY(p.lon, p.lat, w, h, view));

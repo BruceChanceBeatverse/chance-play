@@ -4,7 +4,7 @@ import { talk, sfx } from "../audio.js";
 import { el, screen, topbar, hud, fitCanvas, bindDrag, afterReveal, promptBox, toast, questionHudLayout, HUD_LAYOUT } from "../ui.js";
 import {
   LIGHT_MOON_S, LIGHT_SUN_S, PROXIMA_LY, SUN_SCHWARZSCHILD_KM,
-  SGR_A_SOLAR_MASSES, SGR_A_SCHWARZSCHILD_KM, EARTH_MEAN_DIAMETER_KM, formatNumber, clamp,
+  SGR_A_SOLAR_MASSES, SGR_A_SCHWARZSCHILD_KM, EARTH_MEAN_DIAMETER_KM, EARTH_MOON_KM, formatNumber, clamp,
 } from "../geo.js";
 import { drawGlobe, drawMoon, drawSun } from "../art.js";
 
@@ -18,19 +18,22 @@ export function cosmosLightDestinations() {
 
 export function cosmosArrivalTitle(dest) {
   const name = (dest && dest.name) || "目的地";
-  return "光到了" + name;
+  return "光从" + name + "到了地球";
 }
 
 export function cosmosArrivalTitleEn(dest) {
   const nameEn = (dest && dest.nameEn) || "the destination";
-  return "Light reached " + nameEn;
+  return "Light from " + nameEn + " has reached Earth";
 }
 
 export function cosmosArrivalTalk(dest) {
   const name = (dest && dest.name) || "目的地";
   const nameEn = (dest && dest.nameEn) || "the destination";
   const time = dest ? prettyTime(dest.seconds) : "";
-  return { zh: "光到了" + name + "。这一段光要走 " + time + "。", en: "Light reached " + nameEn + ". This stretch takes " + time + "." };
+  return {
+    zh: "光从" + name + "到了地球。这一段光要走 " + time + "。",
+    en: "Light from " + nameEn + " has reached Earth. This stretch takes " + time + ".",
+  };
 }
 
 export function cosmosCardForBeat(beat) {
@@ -317,13 +320,21 @@ export function blackHoleCompare(rKm, earthKm = EARTH_MEAN_DIAMETER_KM) {
     zh: "还不到地球那么宽（地球平均直径约 " + Math.round(earth).toLocaleString("zh-CN") + " 公里）",
     en: "Not as wide as Earth yet (Earth's mean diameter is about " + Math.round(earth).toLocaleString("en-US") + " km)",
   };
-  if (r < 4e5) return {
-    zh: "比地球还宽（地球平均直径约 " + Math.round(earth).toLocaleString("zh-CN") + " 公里）",
-    en: "Wider than Earth (mean diameter about " + Math.round(earth).toLocaleString("en-US") + " km)",
+  const moon = Number.isFinite(Number(EARTH_MOON_KM)) ? Number(EARTH_MOON_KM) : 384400;
+  const moonZh = "月亮大约 38.4 万公里";
+  const moonEn = "the Moon is about 384,000 km away";
+  // Wider than Earth but clearly short of the Moon (~0.7 × 384,400 ≈ 269,000 km).
+  if (r < moon * 0.7) return {
+    zh: "比地球还宽（地球平均直径约 " + Math.round(earth).toLocaleString("zh-CN") + " 公里），但还不到地球到月亮那么远",
+    en: "Wider than Earth (mean diameter about " + Math.round(earth).toLocaleString("en-US") + " km), but still well short of the Earth–Moon distance",
+  };
+  if (r <= moon * 1.2) return {
+    zh: "快到地球到月亮的距离了（" + moonZh + "）",
+    en: "Getting close to the distance from Earth to the Moon (" + moonEn + ")",
   };
   if (r < 2e7) return {
-    zh: "快到地球到月亮的距离了",
-    en: "Getting close to the distance from Earth to the Moon",
+    zh: "已经比地球到月亮的距离还远（" + moonZh + "）",
+    en: "Already farther than the Earth–Moon distance (" + moonEn + ")",
   };
   return { zh: "非常大", en: "Very large" };
 }

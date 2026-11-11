@@ -1,10 +1,11 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer, goToScaleJourney } from "../ui.js";
+import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer, goToScaleJourney, QUIZ_FEEDBACK_MS } from "../ui.js";
 import { formatNumber } from "../geo.js";
 import { bi } from "../i18n.js";
 
-export const ELEVATOR_STEP_DWELL_MS = 700;
+export const ELEVATOR_STEP_DWELL_MS = 1600;
+export const ELEVATOR_THOUSAND_EXP = 3;
 
 export function elevatorQueueStep(now, lastAt, pending, dir, dwellMs = ELEVATOR_STEP_DWELL_MS) {
   const wait = !Number.isFinite(lastAt) || (now - lastAt) >= dwellMs;
@@ -20,6 +21,20 @@ export function elevatorFlushDue(now, lastAt, pending, dwellMs = ELEVATOR_STEP_D
   return { apply: 0, lastAt, pending };
 }
 
+/** The 1→1,000 quiz is asked when the display is at 1,000 and 10 and 100 have been seen. */
+export function elevatorThousandQuizReady({ exp, seenExp, quizDone, asked } = {}) {
+  if (asked || quizDone) return false;
+  if (Number(exp) !== ELEVATOR_THOUSAND_EXP) return false;
+  const seen = seenExp instanceof Set ? seenExp : new Set(seenExp || []);
+  return seen.has(1) && seen.has(2) && seen.has(3);
+}
+
+/** Do not auto-advance past 1,000 before the 1-to-1,000 quiz is answered. */
+export function elevatorMayStepUp(exp, { quizDone } = {}) {
+  if (Number(exp) >= ELEVATOR_THOUSAND_EXP && !quizDone) return false;
+  return true;
+}
+
 export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
   const s = screen();
   s.classList.add("mode-elevator");
@@ -33,6 +48,7 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
   let lastStepAt = 0;
   let pendingUp = 0;
   let pendingDown = 0;
+  const seenExp = new Set([0]);
 
   s.append(topbar({ title: { zh: "十倍电梯", en: "Times-ten lift" }, sub: { zh: "每按一次 ×10 或 ÷10", en: "Each press is ×10 or ÷10" }, onBack: goHome }));
   const stage = el("div", { class: "stage", style: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "18px" } });
@@ -131,15 +147,20 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
 
   function applyUp() {
     if (exp >= maxE) return false;
+    if (!elevatorMayStepUp(exp, { quizDone })) return false;
     userDrove = true;
-    exp += 1; sfx.tap(); render(); maybeAsk();
+    exp += 1;
+    seenExp.add(exp);
+    sfx.tap(); render(); maybeAsk();
     lastStepAt = performance.now();
     return true;
   }
   function applyDown() {
     if (exp <= minE) return false;
     userDrove = true;
-    exp -= 1; sfx.tap(); render();
+    exp -= 1;
+    seenExp.add(exp);
+    sfx.tap(); render();
     lastStepAt = performance.now();
     return true;
   }
@@ -166,24 +187,26 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
 
   // Already moving: slowly climb the powers of ten until the child takes over.
   const auto = setInterval(() => {
-    if (userDrove || asked || exp >= 3) return;
+    if (userDrove || asked || exp >= ELEVATOR_THOUSAND_EXP) return;
+    if (!elevatorMayStepUp(exp, { quizDone })) return;
     exp += 1;
+    seenExp.add(exp);
     render();
     maybeAsk();
-  }, 2200);
+  }, 2600);
 
   function maybeAsk() {
     if (asked || quizDone) return;
     const dock = (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(orientation: landscape)").matches) ? "top" : "bottom";
-    if (level <= 2 && exp >= 3) {
+    if (level <= 2 && elevatorThousandQuizReady({ exp, seenExp, quizDone, asked })) {
       asked = true;
-      quizDone = true;
       const box = promptBox({ zh: "从 1 到 1000，按了几次 ×10？", en: "From 1 to 1,000, how many times did you press ×10?" }, { zh: "每一次都乘 10。", en: "Each press multiplies by 10." }, [
         { label: "3 次", labelEn: "3 times", ok: true },
         { label: "2 次", labelEn: "2 times" },
         { label: "10 次", labelEn: "10 times" },
       ], (c) => {
         store.recordAnswer("elevator", !!c.ok);
+        quizDone = true;
         markAnswer(box, c, !!c.ok);
         const line = c.ok ? "对。1，10，100，1000，三次。" : "1 乘 10 是 10，再乘 10 是 100，再乘 10 是 1000。三次。";
         talk(line);
@@ -199,7 +222,7 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
               { label: "去尺度之旅", labelEn: "Go to the scale journey", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
             ],
           }));
-        }, 900);
+        }, QUIZ_FEEDBACK_MS);
       }, { dock });
       s.append(box);
       talk("从 1 到 1000，按了几次乘 10？");
@@ -232,7 +255,7 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
               { label: "再乘下去", labelEn: "Keep multiplying", kind: "ok", onClick: () => { asked = false; } },
             ],
           }));
-        }, 900);
+        }, QUIZ_FEEDBACK_MS);
       }, { dock });
       s.append(box);
     }

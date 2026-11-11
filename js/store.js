@@ -59,6 +59,24 @@ function fresh() {
 }
 
 
+/** Keep parent-added trips, and fold in newly featured lived flights. */
+export function mergeTrips(stored, pack = DEFAULT_TRIPS) {
+  const prev = Array.isArray(stored) ? stored : [];
+  const byId = new Map(prev.map((t) => [t.id, t]));
+  const out = pack.map((d) => {
+    const old = byId.get(d.id);
+    if (!old) return { ...d };
+    // Featured lived trips stay on the current pack (labels, notes). Parent
+    // edits to from/to on those built-in ids are not kept so official routes stay official.
+    if (d.featured) return { ...d };
+    return { ...d, ...old };
+  });
+  for (const t of prev) {
+    if (t && t.id && !out.some((x) => x.id === t.id)) out.push(t);
+  }
+  return out;
+}
+
 /** Keep parent-edited speeds, but always use the current consistent racer set. */
 export function mergeRacers(stored, pack = DEFAULT_RACERS) {
   const prev = new Map((Array.isArray(stored) ? stored : []).map((r) => [r.id, r]));
@@ -104,7 +122,7 @@ function load() {
     merged.levels = { ...base.levels, ...(parsed.levels || {}) };
     merged.streaks = { ...base.streaks, ...(parsed.streaks || {}) };
     merged.settings = { ...base.settings, ...(parsed.settings || {}) };
-    if (!Array.isArray(merged.trips) || merged.trips.length === 0) merged.trips = base.trips;
+    merged.trips = mergeTrips(parsed.trips, base.trips);
     merged.racers = mergeRacers(parsed.racers, base.racers);
     if (!Array.isArray(merged.hikes) || merged.hikes.length === 0) merged.hikes = base.hikes;
     else {

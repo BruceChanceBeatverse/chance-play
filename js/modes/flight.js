@@ -1,12 +1,12 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen, goToScaleJourney } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen, goToScaleJourney, markAnswer, QUIZ_FEEDBACK_MS } from "../ui.js";
 import {
-  airportByCode, routeDistanceKm, airportAssumedGroundC,
+  airportByCode, routeDistanceKm, airportAssumedGroundC, livedRouteByEnd, livedRouteByTripId,
 } from "../data.js";
 import {
   greatCirclePoints, flightAltitudeKm, flightOutsideTempC, formatKm, formatKmEn, formatHours, formatHoursEn, formatHoursPair, formatTemp,
-  lonLatToXY, clamp, lerp, smoothstep, interpolateGreatCircle,
+  lonLatToXY, clamp, lerp, smoothstep, interpolateGreatCircle, routeViewBounds, unwrapPathPoints,
 } from "../geo.js";
 import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup, drawEiffelTower } from "../art.js";
 import { shouldShowFlightPicker, resolveTrip, renderTripPicker, switchRouteButton, flightAssumptionCopy } from "../pickers.js";
@@ -22,20 +22,34 @@ export function flightShowsEiffel(to) {
   return city.includes("巴黎") || /paris/i.test(String(to.cityEn || to.nameEn || "")) || code === "LFPG" || code === "CDG";
 }
 
+const LIVED_CITY_EN = {
+  "东京": "Tokyo", "巴黎": "Paris", "洛杉矶": "Los Angeles",
+  "雅典": "Athens", "圣托里尼": "Santorini", "科隆": "Cologne",
+};
+
+export function flightIsLivedCity(city) {
+  const s = String(city || "");
+  return !!LIVED_CITY_EN[s] || /paris|tokyo|los angeles|athens|santorini|cologne/i.test(s);
+}
+
 export function flightArrivalCopy(city, km) {
   const isParis = city === "巴黎" || /paris/i.test(String(city));
   const isTokyo = city === "东京" || /tokyo/i.test(String(city));
-  const title = isParis ? UI.arrivedParis : (isTokyo ? UI.arrivedTokyo : { zh: "到" + city + "了", en: "We've arrived in " + city });
+  const cityEn = LIVED_CITY_EN[city] || city;
+  const title = isParis ? UI.arrivedParis : (isTokyo ? UI.arrivedTokyo : { zh: "到" + city + "了", en: "We've arrived in " + cityEn });
   const kmZh = formatKm(km);
   const kmEn = formatKmEn(km);
+  const lived = flightIsLivedCity(city);
   return {
     title,
     firstBody: { zh: "这趟一共 " + kmZh + "。下一站，你来选。", en: "This flight was " + kmEn + " in all. You pick the next stop." },
     body: isParis
       ? { zh: "这趟一共 " + kmZh + "。你去过巴黎，今年也去了米兰。还可以再飞一次，去看米兰大教堂，或换一趟。", en: "This flight was " + kmEn + " in all. You have been to Paris, and you went to Milan this year. You can fly again, go see the Milan Duomo, or pick another flight." }
-      : { zh: "这趟一共 " + kmZh + "。还可以再飞一次，或换一趟。", en: "This flight was " + kmEn + " in all. You can fly again, or pick another flight." },
+      : lived
+        ? { zh: "这趟一共 " + kmZh + "。你去过" + city + "。还可以再飞一次，或换一趟去别的地方。", en: "This flight was " + kmEn + " in all. You have been to " + cityEn + ". You can fly again, or pick another flight." }
+        : { zh: "这趟一共 " + kmZh + "。还可以再飞一次，或换一趟。", en: "This flight was " + kmEn + " in all. You can fly again, or pick another flight." },
     talkZh: "到" + city + "了！一共 " + kmZh + "。",
-    talkEn: "We've arrived in " + (isParis ? "Paris" : isTokyo ? "Tokyo" : city) + "! " + kmEn + " in all.",
+    talkEn: "We've arrived in " + cityEn + "! " + kmEn + " in all.",
     isParis,
   };
 }
@@ -44,7 +58,7 @@ export function flightArrivalActions(city, { app, goHome, onDone, goZoom, tripId
   const isParis = city === "巴黎" || /paris/i.test(String(city));
   const actions = [
     { label: UI.flyAgain.zh, labelEn: UI.flyAgain.en, kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId, firstPlay: false }) },
-    { label: isParis ? "去东京" : "去巴黎", labelEn: isParis ? "Fly to Tokyo" : "Fly to Paris", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId: isParis ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
+    { label: UI.switchFlight.zh, labelEn: UI.switchFlight.en, onClick: () => renderFlight(app, { goHome, onDone, goZoom, firstPlay: false }) },
   ];
   if (isParis) {
     actions.push({ label: UI.seeDuomo.zh, labelEn: UI.seeDuomo.en, onClick: () => goToScaleJourney({ goZoom, onDone, goHome, stopId: "duomo" }) });
@@ -78,24 +92,56 @@ export function autoFlightProgress(prev, dtSec, { dragging = false, frozen = fal
 }
 
 
+
+/** World card for the flight on screen — never a different lived city. */
+export function flightCardIdFor(trip) {
+  if (!trip) return null;
+  const lived = livedRouteByTripId(trip.id) || livedRouteByTripId(trip.tripId)
+    || livedRouteByEnd(trip.to) || livedRouteByEnd(trip.end);
+  return (lived && lived.flightCardId) || null;
+}
+
+/** Mid-route time quizzes should not drop a city card. Arrival and topic quizzes should. */
+export function flightShouldDropCard(kind = "arrival") {
+  return kind === "arrival" || kind === "lapse" || kind === "temp" || kind === "parisRatio";
+}
+
+/**
+ * prefer/allowOnly/force so a Los Angeles flight cannot award Cologne,
+ * and a temperature quiz awards the lapse card, not a random city.
+ */
+export function flightRevealOpts(trip, extra = {}) {
+  const kind = extra.kind || "arrival";
+  const rest = { ...extra };
+  delete rest.kind;
+  if (!flightShouldDropCard(kind)) {
+    return { ...rest, skip: true };
+  }
+  if (kind === "lapse" || kind === "temp") {
+    return { ...rest, prefer: "c-lapse", allowOnly: ["c-lapse"], force: rest.force !== false };
+  }
+  if (kind === "parisRatio") {
+    return { ...rest, prefer: "c-paris-flight", allowOnly: ["c-paris-flight"], force: rest.force !== false };
+  }
+  const prefer = flightCardIdFor(trip);
+  const opts = { ...rest };
+  if (prefer) {
+    opts.prefer = prefer;
+    opts.allowOnly = [prefer];
+    if (opts.force === undefined) opts.force = true;
+  }
+  return opts;
+}
+
 function tripOf(id) {
   const trips = store.get().trips;
   return trips.find((t) => t.id === id) || trips[0];
 }
 
-function routeView(from, to) {
+export function routeView(from, to) {
   const pts = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 64);
-  let lon0 = 180, lon1 = -180, lat0 = 90, lat1 = -90;
-  // Handle antimeridian simply by not wrapping these two featured routes (both stay east-of-west).
-  for (const p of pts) {
-    lon0 = Math.min(lon0, p.lon); lon1 = Math.max(lon1, p.lon);
-    lat0 = Math.min(lat0, p.lat); lat1 = Math.max(lat1, p.lat);
-  }
-  const padLon = Math.max(8, (lon1 - lon0) * 0.25);
-  const padLat = Math.max(6, (lat1 - lat0) * 0.4);
-  lon0 -= padLon; lon1 += padLon; lat0 -= padLat; lat1 += padLat;
-  // Keep aspect later in draw.
-  return { lon0, lon1, lat0, lat1 };
+  const bounds = routeViewBounds(pts);
+  return { lon0: bounds.lon0, lon1: bounds.lon1, lat0: bounds.lat0, lat1: bounds.lat1 };
 }
 
 function metrics(progress, km, fromCode, toCode) {
@@ -121,7 +167,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
   const to = airportByCode(trip.to);
   const km = routeDistanceKm(trip.from, trip.to);
   const view0 = routeView(from, to);
-  const ptsGC = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 200);
+  const ptsGC = unwrapPathPoints(greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 200));
 
   let progress = 0;
   let dragging = false;
@@ -284,7 +330,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
         actions: [
           { label: UI.nextStopYouPick.zh, labelEn: UI.nextStopYouPick.en, kind: "ok", onClick: () => onDone?.() },
         ],
-      }));
+      }), flightRevealOpts(trip));
       return;
     }
     afterReveal("flight", () => offerContinue(s, {
@@ -293,7 +339,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       tone: "ok",
       goHome,
       actions: flightArrivalActions(city, { app, goHome, onDone, goZoom, tripId }),
-    }));
+    }), flightRevealOpts(trip));
   }
 
   function afterFlight(host) {
@@ -321,15 +367,17 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       const correct = !!c.ok;
       store.recordAnswer("flight", correct);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: remain, ratio: c.value / remain });
-      box.remove();
+      markAnswer(box, c, correct);
       talk(correct ? "对了。一半的路，就要一半的时间。" : "看看数字。一半的路，就要一半的时间。现在还要 " + formatHours(remain) + "。");
-      if (!firstPlay) toast(correct ? "正好是一半的时间" : "再看一眼：是 " + formatHours(remain));
-      if (firstPlay) {
-        // Big picture first (plane → sea → Earth → Moon), then a possible world card, then "下一站".
-        startZoomOut(s, { from, to, km, goNext: () => afterReveal("flight", () => afterFlight(s)) });
-      } else {
-        afterReveal("flight", () => resumeFlight());
-      }
+      if (!firstPlay) toast(correct ? "正好是一半的时间" : "再看一眼：是 " + formatHours(remain), QUIZ_FEEDBACK_MS);
+      setTimeout(() => {
+        box.remove();
+        if (firstPlay) {
+          startZoomOut(s, { from, to, km, goNext: () => afterFlight(s) });
+        } else {
+          resumeFlight();
+        }
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk(UI.halfwayQuiz.zh, UI.halfwayQuiz.en);
@@ -346,11 +394,14 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       { label: "更暖", labelEn: "Warmer", ok: false },
     ], (c) => {
       store.recordAnswer("flight", !!c.ok);
-      box.remove();
+      markAnswer(box, c, !!c.ok);
       talk(c.ok
         ? "对了。每升高 1 公里，外面大约会凉 6.5 度。"
         : "其实会更冷。每升高 1 公里，外面大约凉 6.5 度。");
-      afterReveal("flight", () => resumeFlight());
+      setTimeout(() => {
+        box.remove();
+        afterReveal("flight", () => resumeFlight(), flightRevealOpts(trip, { kind: "lapse" }));
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk("飞得更高，外面会更冷还是更暖？");
@@ -367,9 +418,12 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       choices, (c) => {
       store.recordAnswer("flight", !!c.ok);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: r, ratio: c.value / r });
-      box.remove();
+      markAnswer(box, c, !!c.ok);
       talk(c.ok ? "对了。剩下四分之三的路。" : "剩下四分之三，所以时间也大约是全程的四分之三。");
-      afterReveal("flight", () => resumeFlight());
+      setTimeout(() => {
+        box.remove();
+        resumeFlight();
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk("飞了四分之一，还要多久？");
@@ -400,9 +454,12 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       choices, (c) => {
       store.recordAnswer("flight", !!c.ok);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: ratio, ratio: c.value / ratio });
-      box.remove();
+      markAnswer(box, c, !!c.ok);
       talk("去巴黎大约是去东京的 " + ratio.toFixed(1) + " 倍。");
-      afterReveal("flight", () => resumeFlight());
+      setTimeout(() => {
+        box.remove();
+        afterReveal("flight", () => resumeFlight(), flightRevealOpts(trip, { kind: "parisRatio" }));
+      }, QUIZ_FEEDBACK_MS);
     });
     s.append(box);
     talk("去巴黎比去东京远几倍？");
@@ -537,7 +594,7 @@ function startZoomOut(s, { from, to, km, goNext }) {
   s.append(overlay);
   let t = 0, raf = 0;
   const start = performance.now();
-  const route = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 48);
+  const route = unwrapPathPoints(greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 48));
   talk("我们从座位往外看。飞机，海，地球，然后是月亮。");
   const tick = (now) => {
     t = (now - start) / 1000;

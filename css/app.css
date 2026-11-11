@@ -52,11 +52,47 @@ button, input, textarea, select { font-family: inherit; }
   display: flex; flex-direction: column;
   animation: fadein 0.45s ease;
 }
-@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadein { from { opacity: 0.55; } to { opacity: 1; } }
 .screen canvas.fill {
   position: absolute; inset: 0; width: 100%; height: 100%;
   touch-action: none;
   display: block;
+  background: #0a4a6a;
+}
+.boot-splash {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px;
+  background: linear-gradient(180deg, #143a5c 0%, #0a4a6a 45%, #071018 100%);
+  color: var(--cream);
+  text-align: center;
+  padding: 24px;
+  z-index: 1;
+  pointer-events: none;
+}
+.boot-splash-title { font-size: 28px; font-weight: 800; }
+.boot-splash-sub { font-size: 20px; color: var(--muted); }
+.speak-btn {
+  width: 64px; height: 64px; min-width: 64px; min-height: 64px;
+  border: 0; border-radius: 20px;
+  background: var(--gold); color: var(--ink);
+  font-size: 28px; line-height: 1;
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.speak-btn:active { transform: scale(0.96); }
+.speak-row {
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.speak-row h2, .speak-row .title-chip, .speak-row .k { flex: 1; min-width: 0; }
+.title-speak { flex: 1; min-width: 0; align-items: center; }
+.prompt-speak { width: 100%; }
+input[type="range"] {
+  min-height: 56px;
+  height: 72px;
+  accent-color: var(--gold);
 }
 
 /* Top chrome */
@@ -548,7 +584,7 @@ button, input, textarea, select { font-family: inherit; }
 .prompt.compact h2 { font-size: 22px; margin: 0 0 4px; }
 .prompt.compact p { font-size: 16px; }
 .prompt.compact .choices { margin-top: 10px; }
-.prompt.compact .choice { min-height: 64px; font-size: 20px; padding: 0 16px; }
+.prompt.compact .choice { min-height: var(--tap); font-size: 20px; padding: 0 16px; }
 
 /* Zoom landscape: quiz sits on the right so most of the globe stays visible. */
 @media (orientation: landscape) {

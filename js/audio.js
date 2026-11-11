@@ -79,13 +79,23 @@ export function stopTalk() {
   speaking = null;
 }
 
-export function talk(zh, en) {
+/** Normalize child-facing copy for tap-to-speak. */
+export function childSpeakLines(zh, en) {
   if (zh && typeof zh === "object" && !Array.isArray(zh) && (zh.zh != null || zh.en != null)) {
+    return { zh: zh.zh || "", en: zh.en || en || "" };
+  }
+  return { zh: zh || "", en: en || "" };
+}
+
+export function talk(zh, en, opts = {}) {
+  if (zh && typeof zh === "object" && !Array.isArray(zh) && (zh.zh != null || zh.en != null)) {
+    if (en && typeof en === "object" && !Array.isArray(en)) opts = en;
     en = zh.en;
     zh = zh.zh;
   }
   const s = store.get().settings;
-  if (!s.voiceOn) return Promise.resolve();
+  // An explicit tap-to-speak gesture should still speak when auto-voice is off.
+  if (!opts.force && !s.voiceOn) return Promise.resolve();
   stopTalk();
   const lines = [];
   if (zh) lines.push({ text: zh, lang: "zh-CN" });

@@ -1,12 +1,12 @@
 import { store } from "./store.js";
 import { talk, unlockAudio, sfx } from "./audio.js";
-import { el, screen, fitCanvas } from "./ui.js";
+import { el, screen, fitCanvas, withSpeak } from "./ui.js";
 import { renderFlight } from "./modes/flight.js";
 import { renderRace } from "./modes/race.js";
 import { renderHike } from "./modes/hike.js";
 import { renderZoom } from "./modes/zoom.js";
 import { airportByCode, routeDistanceKm } from "./data.js";
-import { thumbViewForRoute, FIRST_PLAY_HIKE_ID } from "./pickers.js";
+import { thumbViewForRoute, FIRST_PLAY_HIKE_ID, renderTripPicker } from "./pickers.js";
 import { bi, UI } from "./i18n.js";
 import { greatCirclePoints, lonLatToXY } from "./geo.js";
 import { fillSky, drawWater, drawLand, drawRoute, drawCityGlow, drawPlane, drawSoftClouds, paintRouteThumb, drawMountainPair } from "./art.js";
@@ -21,8 +21,14 @@ export function renderWelcome(app, go) {
   };
   const ui = el("div", { class: "welcome" },
     el("div", { class: "welcome-copy" },
-      el("div", { class: "welcome-title" }, bi("Chance，还记得我们飞去东京吗？", "Chance, remember our flight to Tokyo?")),
-      el("div", { class: "welcome-sub" }, bi("上海浦东 → 东京羽田  ·  约 1,740 公里", "Shanghai Pudong → Tokyo Haneda  ·  about 1,740 km")),
+      withSpeak(
+        el("div", {},
+          el("div", { class: "welcome-title" }, bi("Chance，还记得我们飞去东京吗？", "Chance, remember our flight to Tokyo?")),
+          el("div", { class: "welcome-sub" }, bi("上海浦东 → 东京羽田  ·  约 1,740 公里", "Shanghai Pudong → Tokyo Haneda  ·  about 1,740 km")),
+        ),
+        "Chance，还记得我们飞去东京吗？上海浦东到东京羽田，大约 1,740 公里。",
+        "Chance, remember our flight to Tokyo? Shanghai Pudong to Tokyo Haneda, about 1,740 km."
+      ),
     ),
     el("button", {
       class: "plane-start",
@@ -80,6 +86,15 @@ function chooseNext(app, go) {
   const parisBtn = choiceTile({ zh: "去巴黎", en: "Go to Paris" }, "ok", (ctx, w, h) => {
     paintRouteThumb(ctx, w, h, "PVG", "CDG", thumbViewForRoute(airportByCode("PVG"), airportByCode("CDG")));
   }, () => { unlockAudio(); goFlightParis(app, go); });
+  const moreFlyBtn = choiceTile({ zh: "去别的地方", en: "Fly somewhere else" }, "", (ctx, w, h) => {
+    paintRouteThumb(ctx, w, h, "PVG", "LAX", thumbViewForRoute(airportByCode("PVG"), airportByCode("LAX")));
+  }, () => {
+    unlockAudio();
+    renderTripPicker(app, {
+      goHome: () => go("home"),
+      onPick: (trip) => renderFlight(app, { tripId: trip.id, goHome: () => go("home"), onDone: () => wrap(app, go) }),
+    });
+  });
   const hikeBtn = choiceTile({ zh: "爬山", en: "Hike" }, "", (ctx, w, h) => {
     fillSky(ctx, w, h, { top: "#7eb6e0", mid: "#b8d4c8", bot: "#163328" });
     drawMountainPair(ctx, w * 0.5, h * 0.85, h * 0.7, { snow: true, color: "#2a6a55" });
@@ -115,7 +130,7 @@ function chooseNext(app, go) {
 
   const ui = el("div", { class: "welcome choose-next-ui" },
     el("h2", { class: "welcome-title" }, bi(UI.pickNext)),
-    el("div", { class: "choices choose-next-row" }, parisBtn, hikeBtn, raceBtn, journeyBtn),
+    el("div", { class: "choices choose-next-row" }, parisBtn, moreFlyBtn, hikeBtn, raceBtn, journeyBtn),
   );
   s.append(canvas, ui);
   let running = true, raf = 0, t0 = performance.now();
@@ -140,7 +155,7 @@ function chooseNext(app, go) {
   raf = requestAnimationFrame(tick);
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); };
   app.replaceChildren(s);
-  talk("下一站你来选。去巴黎的航线，你来过的富士山，还是速度大比拼？", "You pick the next stop. The flight to Paris, Fuji where you have been, or the speed race?");
+  talk("下一站你来选。去巴黎，或去洛杉矶、雅典、圣托里尼、科隆，你来过的富士山，还是速度大比拼？", "You pick the next stop. The flight to Paris, or to Los Angeles, Athens, Santorini, or Cologne, Fuji where you have been, or the speed race?");
 }
 
 function choiceTile(label, kind, paint, onClick) {

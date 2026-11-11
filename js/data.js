@@ -55,6 +55,10 @@ const ASSUMED_GROUND_C = {
   PVG: 18, SHA: 18,
   HND: 16, NRT: 16,
   CDG: 10, ORY: 10,
+  LAX: 18,
+  ATH: 18,
+  JTR: 20,
+  CGN: 12,
 };
 
 export function airportAssumedGroundC(code) {
@@ -126,6 +130,9 @@ export const AIRPORTS = {
   SEA: { icao: "KSEA", name: "西雅图", nameEn: "Seattle Tacoma", city: "西雅图", lat: 47.449001, lon: -122.308998 },
   YVR: { icao: "CYVR", name: "温哥华", nameEn: "Vancouver", city: "温哥华", lat: 49.193901, lon: -123.183998 },
   YYZ: { icao: "CYYZ", name: "多伦多", nameEn: "Toronto Pearson", city: "多伦多", lat: 43.6772, lon: -79.6306 },
+  ATH: { icao: "LGAV", name: "雅典国际", nameEn: "Athens International", city: "雅典", lat: 37.936401, lon: 23.9445 },
+  JTR: { icao: "LGSR", name: "圣托里尼", nameEn: "Santorini", city: "圣托里尼", lat: 36.400045, lon: 25.478638 },
+  CGN: { icao: "EDDK", name: "科隆波恩", nameEn: "Cologne Bonn", city: "科隆", lat: 50.865898, lon: 7.14274 },
 };
 
 export function airportByCode(code) {
@@ -150,6 +157,7 @@ export const DEFAULT_TRIPS = [
     // display the rounded kilometre (1,740).
     note: "大圆航线，实际飞行会稍长。",
     featured: true,
+    lived: true,
   },
   {
     id: "pvg-cdg",
@@ -160,8 +168,89 @@ export const DEFAULT_TRIPS = [
     // (a coarser rounding). We use the geodesic and show 9,287 公里.
     note: "大圆航线，实际飞行会稍长。比去东京远大约 5.3 倍。",
     featured: true,
+    lived: true,
+  },
+  {
+    id: "pvg-lax",
+    from: "PVG",
+    to: "LAX",
+    label: "上海浦东 → 洛杉矶", labelEn: "Shanghai Pudong → Los Angeles",
+    // WGS-84 geodesic ≈ 10,435.9 km. Display the rounded kilometre (10,436).
+    // Short path crosses the Pacific / antimeridian.
+    note: "大圆航线大约 10,436 公里，从太平洋过去，实际飞行会稍长。你坐过这趟飞机。",
+    featured: true,
+    lived: true,
+  },
+  {
+    id: "pvg-ath",
+    from: "PVG",
+    to: "ATH",
+    label: "上海浦东 → 雅典国际", labelEn: "Shanghai Pudong → Athens International",
+    // WGS-84 geodesic ≈ 8,575.7 km. Display 8,576 公里.
+    note: "大圆航线大约 8,576 公里，实际飞行会稍长。你坐过这趟飞机。",
+    featured: true,
+    lived: true,
+  },
+  {
+    id: "pvg-jtr",
+    from: "PVG",
+    to: "JTR",
+    label: "上海浦东 → 圣托里尼", labelEn: "Shanghai Pudong → Santorini",
+    // WGS-84 geodesic ≈ 8,540.3 km. Display 8,540 公里.
+    note: "大圆航线大约 8,540 公里，实际飞行会稍长。你坐过这趟飞机。",
+    featured: true,
+    lived: true,
+  },
+  {
+    id: "pvg-cgn",
+    from: "PVG",
+    to: "CGN",
+    label: "上海浦东 → 科隆波恩", labelEn: "Shanghai Pudong → Cologne Bonn",
+    // WGS-84 geodesic ≈ 8,901.8 km. Display 8,902 公里.
+    note: "大圆航线大约 8,902 公里，实际飞行会稍长。你坐过这趟飞机。",
+    featured: true,
+    lived: true,
   },
 ];
+
+/**
+ * Lived flights Chance has actually taken, all starting from Shanghai Pudong.
+ * midOverSea: the midpoint of the short great-circle really is over the sea
+ * (Tokyo over the East China Sea, Los Angeles over the Pacific). Europe routes
+ * cross Eurasia, so their mid label must not say 海中间.
+ */
+export const LIVED_FLIGHT_ROUTES = [
+  { id: "tokyo", tripId: "pvg-hnd", from: "PVG", to: "HND", end: "东京", endEn: "Tokyo", midOverSea: true, cardId: "c-route", flightCardId: "c-tokyo" },
+  { id: "paris", tripId: "pvg-cdg", from: "PVG", to: "CDG", end: "巴黎", endEn: "Paris", midOverSea: false, cardId: "c-route-paris", flightCardId: "c-paris" },
+  { id: "lax", tripId: "pvg-lax", from: "PVG", to: "LAX", end: "洛杉矶", endEn: "Los Angeles", midOverSea: true, cardId: "c-route-lax", flightCardId: "c-lax" },
+  { id: "ath", tripId: "pvg-ath", from: "PVG", to: "ATH", end: "雅典", endEn: "Athens", midOverSea: false, cardId: "c-route-ath", flightCardId: "c-ath" },
+  { id: "jtr", tripId: "pvg-jtr", from: "PVG", to: "JTR", end: "圣托里尼", endEn: "Santorini", midOverSea: false, cardId: "c-route-jtr", flightCardId: "c-jtr" },
+  { id: "cgn", tripId: "pvg-cgn", from: "PVG", to: "CGN", end: "科隆", endEn: "Cologne", midOverSea: false, cardId: "c-route-cgn", flightCardId: "c-cgn" },
+];
+
+export function livedRouteByTripId(tripId) {
+  return LIVED_FLIGHT_ROUTES.find((r) => r.tripId === tripId) || null;
+}
+
+export function livedRouteByEnd(end) {
+  const s = String(end || "");
+  return LIVED_FLIGHT_ROUTES.find((r) => r.end === s || r.endEn === s || r.id === s) || null;
+}
+
+/** Midpoint caption for a lived (or any) route. Tokyo / LA may say 海中间; others say 航线一半. */
+export function routeMidLabel(routeOrTripId) {
+  const route = typeof routeOrTripId === "string"
+    ? livedRouteByTripId(routeOrTripId) || livedRouteByEnd(routeOrTripId)
+    : routeOrTripId;
+  if (route && route.midOverSea) return { zh: "海中间", en: "middle of the sea" };
+  return { zh: "航线一半", en: "halfway" };
+}
+
+export function routeHalfwayKm(from, to) {
+  const km = routeDistanceKm(from, to);
+  if (!Number.isFinite(km)) return null;
+  return Math.round(km / 2);
+}
 
 /**
  * Speeds in km/h. These are labelled ASSUMPTIONS on screen and are editable.
@@ -171,6 +260,8 @@ export const DEFAULT_TRIPS = [
  * - 汽车 120: common passenger-car limit on many Chinese expressways.
  * - 高铁 350: CR400 Fuxing design/operating speed on some high-speed lines.
  * - 飞机 850: typical jet cruise true airspeed (Mach ~0.78–0.85 is ~800–900).
+ * - 滑雪 30: an assumed leisure / child downhill-cruise pace, not a measured
+ *   ski speed. Labelled 假设 on screen.
  * Race times assume a constant speed on the great-circle distance, with no
  * stops, no roads, no wind. That impossibility is a feature: it invites
  * "为什么骑车去不了东京？".
@@ -178,6 +269,7 @@ export const DEFAULT_TRIPS = [
 export const DEFAULT_RACERS = [
   { id: "walk", name: "走路", nameEn: "Walk", kmh: 5, color: "#c9f0a8", emoji: "🚶" },
   { id: "bike", name: "自行车", nameEn: "Bicycle", kmh: 15, color: "#7dffb3", emoji: "🚲" },
+  { id: "ski", name: "滑雪", nameEn: "Ski", kmh: 30, color: "#9ad4ff", emoji: "⛷️", assumption: true },
   { id: "car", name: "汽车", nameEn: "Car", kmh: 120, color: "#ffd56a", emoji: "🚗" },
   { id: "hsr", name: "高铁", nameEn: "High-speed rail", kmh: 350, color: "#ff7a59", emoji: "🚄" },
   { id: "plane", name: "飞机", nameEn: "Aeroplane", kmh: 850, color: "#5ce1e6", emoji: "✈️" },
@@ -318,6 +410,21 @@ export const SAMPLE_HIKES = [
     color: "#7dffb3",
     // Nearby Shanghai hill for contrast only. Not a mountain he has climbed.
     points: makeHillProfile({ lengthKm: 3.6, peakM: 99, peakAt: 0.55, startM: 0, bumps: [[0.25, 40, 0.08]] }),
+  },
+  {
+    id: "everest",
+    name: "珠穆朗玛峰",
+    nameEn: "Mount Everest",
+    sample: true,
+    child: true,
+    knownOnly: true,
+    livedVisit: false,
+    officialSummit: true,
+    peakM: 8849,
+    color: "#d8e4f0",
+    // Schematic profile of the official height. He knows this mountain;
+    // he has not climbed it. Not treated as his 12 km hike.
+    points: makeHillProfile({ lengthKm: 20, peakM: 8849, peakAt: 0.88, startM: 0, bumps: [[0.35, 5200, 0.1], [0.55, 7000, 0.08]] }),
   },
 ];
 
@@ -490,13 +597,27 @@ export const CARD_TEMPLATES = [
   { id: "c-bike", title: "自行车", titleEn: "Bicycle", value: "大约 15 公里/小时（假设）", valueEn: "About 15 km/h (assumed)", mode: "race",
     backTitle: "慢慢骑", backTitleEn: "A gentle ride", back: "这是用来比较的假设速度。同样 2 公里，骑车大约要几分钟。", backEn: "This is an assumed speed for comparing. Over the same 2 km, a bike takes a few minutes." },
   { id: "c-plane", title: "飞机巡航", titleEn: "Plane cruise", value: "大约 850 公里/小时（假设）", valueEn: "About 850 km/h (assumed)", mode: "race",
-    backTitle: "很快", backTitleEn: "Very fast", back: "这是用来比较的假设巡航速度。同样 2 公里，飞机只要几秒钟。", backEn: "This is an assumed cruise speed for comparing. Over the same 2 km, a plane takes only a few seconds." },
+    backTitle: "很快", backTitleEn: "Very fast", back: "这是用来比较的假设巡航速度。去东京大约 1,740 公里，按这个速度大约两个多小时。", backEn: "This is an assumed cruise speed for comparing. Tokyo is about 1,740 km, about two hours at this speed." },
+  { id: "c-car", title: "汽车", titleEn: "Car", value: "大约 120 公里/小时（假设）", valueEn: "About 120 km/h (assumed)", mode: "race",
+    backTitle: "开得比较快", backTitleEn: "A faster ride", back: "这是用来比较的假设速度。在很多高速公路上，小汽车常见的限速大约是 120 公里/小时。", backEn: "This is an assumed speed for comparing. 120 km/h is a common passenger-car limit on many expressways." },
+  { id: "c-ski", title: "滑雪", titleEn: "Skiing", value: "大约 30 公里/小时（假设）", valueEn: "About 30 km/h (assumed)", mode: "race",
+    backTitle: "慢慢滑下来", backTitleEn: "A gentle downhill", back: "这是用来比较的假设速度，不是量过的滑雪速度。像小朋友从山上慢慢滑下来，大约 30 公里/小时。", backEn: "This is an assumed speed for comparing, not a measured ski speed. A child's leisure downhill cruise is taken as about 30 km/h." },
   { id: "c-sheshan", title: "附近一座小山", titleEn: "A small nearby hill", value: "大约 99 米高", valueEn: "About 99 m", mode: "hike",
     backTitle: "用来比一比的小山", backTitleEn: "A small hill for contrast",
     back: "上海附近一座小山，官方大约 99 米。用来和铁塔、外滩的楼、富士山比一比。不是你爬过的山。",
     backEn: "A small hill near Shanghai, officially about 99 m. Use it to compare with the Eiffel Tower, the Bund towers, and Fuji. It is not a mountain you have climbed." },
   { id: "c-route", title: "去东京的一半", titleEn: "Halfway to Tokyo", value: "大约 870 公里", valueEn: "About 870 km", mode: "numberline",
     backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到东京大约 1,740 公里。对折之后，一半大约是 870 公里。数轴上的中点，就是这个意思。", backEn: "Shanghai to Tokyo is about 1,740 km. Folded in half, that is about 870 km. That is what the midpoint on a number line means." },
+  { id: "c-route-paris", title: "去巴黎的一半", titleEn: "Halfway to Paris", value: "大约 4,644 公里", valueEn: "About 4,644 km", mode: "numberline",
+    backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到巴黎大约 9,287 公里。对折之后，一半大约是 4,644 公里。不是去东京的一半。", backEn: "Shanghai to Paris is about 9,287 km. Folded in half, that is about 4,644 km. It is not halfway to Tokyo." },
+  { id: "c-route-lax", title: "去洛杉矶的一半", titleEn: "Halfway to Los Angeles", value: "大约 5,218 公里", valueEn: "About 5,218 km", mode: "numberline",
+    backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到洛杉矶大约 10,436 公里。对折之后，一半大约是 5,218 公里。这一半在太平洋上。", backEn: "Shanghai to Los Angeles is about 10,436 km. Folded in half, that is about 5,218 km. That halfway point is over the Pacific." },
+  { id: "c-route-ath", title: "去雅典的一半", titleEn: "Halfway to Athens", value: "大约 4,288 公里", valueEn: "About 4,288 km", mode: "numberline",
+    backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到雅典大约 8,576 公里。对折之后，一半大约是 4,288 公里。", backEn: "Shanghai to Athens is about 8,576 km. Folded in half, that is about 4,288 km." },
+  { id: "c-route-jtr", title: "去圣托里尼的一半", titleEn: "Halfway to Santorini", value: "大约 4,270 公里", valueEn: "About 4,270 km", mode: "numberline",
+    backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到圣托里尼大约 8,540 公里。对折之后，一半大约是 4,270 公里。", backEn: "Shanghai to Santorini is about 8,540 km. Folded in half, that is about 4,270 km." },
+  { id: "c-route-cgn", title: "去科隆的一半", titleEn: "Halfway to Cologne", value: "大约 4,451 公里", valueEn: "About 4,451 km", mode: "numberline",
+    backTitle: "对折一下", backTitleEn: "Fold it in half", back: "上海到科隆大约 8,902 公里。对折之后，一半大约是 4,451 公里。", backEn: "Shanghai to Cologne is about 8,902 km. Folded in half, that is about 4,451 km." },
   { id: "c-earth", title: "地球一圈", titleEn: "Once around the Earth", value: "40,075 公里", valueEn: "40,075 km", mode: "zoom",
     backTitle: "绕一圈", backTitleEn: "A full loop", back: "赤道一圈大约 40,075 公里。去巴黎大约是地球一圈的四分之一不到。", backEn: "The equator is about 40,075 km around. Paris is a little less than a quarter of the way around the Earth." },
   { id: "c-moon", title: "光到月亮", titleEn: "Light to the Moon", value: "1.28 秒", valueEn: "1.28 seconds", mode: "cosmos",
@@ -527,6 +648,14 @@ export const CARD_TEMPLATES = [
     backTitle: "能看见的小", backTitleEn: "Small you can see", back: "大约 4 毫米。这是你能看见、能比划的小，比普朗克长度大很多很多。", backEn: "About 4 mm. This is a small thing you can see and show with your hands, much bigger than the Planck length." },
   { id: "c-paris-flight", title: "去巴黎有多远", titleEn: "How far is Paris", value: "比东京远大约 5.3 倍", valueEn: "About 5.3 times farther than Tokyo", mode: "flight",
     backTitle: "同样是飞机", backTitleEn: "The same kind of plane", back: "上海到巴黎大约 9,287 公里，上海到东京大约 1,740 公里。9,287 ÷ 1,740 大约是 5.3。", backEn: "Shanghai to Paris is about 9,287 km; Shanghai to Tokyo is about 1,740 km. 9,287 ÷ 1,740 is about 5.3." },
+  { id: "c-lax", title: "上海到洛杉矶", titleEn: "Shanghai to Los Angeles", value: "10,436 公里", valueEn: "10,436 km", mode: "flight",
+    backTitle: "飞过太平洋", backTitleEn: "Across the Pacific", back: "从浦东飞到洛杉矶，大约 10,436 公里。这是 Chance 坐过的一趟飞机，要越过太平洋。", backEn: "From Pudong to Los Angeles, about 10,436 km. This is a flight Chance has taken, across the Pacific." },
+  { id: "c-ath", title: "上海到雅典", titleEn: "Shanghai to Athens", value: "8,576 公里", valueEn: "8,576 km", mode: "flight",
+    backTitle: "你坐过的一趟", backTitleEn: "A flight you have taken", back: "从浦东飞到雅典，大约 8,576 公里。这是 Chance 坐过的一趟飞机。", backEn: "From Pudong to Athens, about 8,576 km. This is a flight Chance has taken." },
+  { id: "c-jtr", title: "上海到圣托里尼", titleEn: "Shanghai to Santorini", value: "8,540 公里", valueEn: "8,540 km", mode: "flight",
+    backTitle: "你坐过的一趟", backTitleEn: "A flight you have taken", back: "从浦东飞到圣托里尼，大约 8,540 公里。这是 Chance 坐过的一趟飞机。", backEn: "From Pudong to Santorini, about 8,540 km. This is a flight Chance has taken." },
+  { id: "c-cgn", title: "上海到科隆", titleEn: "Shanghai to Cologne", value: "8,902 公里", valueEn: "8,902 km", mode: "flight",
+    backTitle: "你坐过的一趟", backTitleEn: "A flight you have taken", back: "从浦东飞到科隆，大约 8,902 公里。这是 Chance 坐过的一趟飞机。", backEn: "From Pudong to Cologne, about 8,902 km. This is a flight Chance has taken." },
   { id: "c-hsr", title: "高铁 1 小时", titleEn: "One hour by high-speed rail", value: "大约 350 公里（假设）", valueEn: "About 350 km (assumed)", mode: "race",
     backTitle: "比汽车快", backTitleEn: "Faster than a car", back: "这是用来比较的假设：高铁一小时大约能走 350 公里，比汽车快，比飞机慢。", backEn: "This is an assumed figure for comparing: a high-speed train covers about 350 km in an hour, faster than a car, slower than a plane." },
   { id: "c-schlern", title: "大板凳山（斯西利亚尔）", titleEn: "Schlern / Sciliar", value: "2,563 米", valueEn: "2,563 m", mode: "hike",

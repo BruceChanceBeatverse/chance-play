@@ -9,7 +9,7 @@ import { store } from "./store.js";
 import { talk, unlockAudio, sfx } from "./audio.js";
 import { el, screen, topbar } from "./ui.js";
 import { airportByCode, routeDistanceKm } from "./data.js";
-import { formatKm, zhDistanceToEn } from "./geo.js";
+import { formatKm, zhDistanceToEn, greatCirclePoints, routeViewBounds } from "./geo.js";
 import { paintRouteThumb, fillSky, drawMountainPair } from "./art.js";
 
 export function playableTrips() {
@@ -23,12 +23,12 @@ export function childPlayableTrips() {
 
 export function childFlightPickerCopy() {
   return {
-    sub: "去东京羽田、去巴黎",
-    subEn: "To Tokyo Haneda, to Paris",
-    talk: "选一趟飞行。去东京羽田，或去巴黎。",
-    talkEn: "Pick a flight. To Tokyo Haneda, or to Paris.",
-    lead: "点一张图，就开始飞。",
-    leadEn: "Tap a picture, and the plane starts flying.",
+    sub: "去东京羽田、去巴黎、去洛杉矶、去雅典、去圣托里尼、去科隆",
+    subEn: "To Tokyo Haneda, Paris, Los Angeles, Athens, Santorini, Cologne",
+    talk: "选一趟飞行。去东京羽田、去巴黎、去洛杉矶、去雅典、去圣托里尼，或去科隆。",
+    talkEn: "Pick a flight. To Tokyo Haneda, Paris, Los Angeles, Athens, Santorini, or Cologne.",
+    lead: "点一张图，就开始飞。这些都是你坐过的飞机。",
+    leadEn: "Tap a picture, and the plane starts flying. These are flights you have taken.",
   };
 }
 
@@ -52,7 +52,7 @@ export function playableHikes() {
 /** Sample mountains only — imported GPX stays off the child picker. */
 export function childPlayableHikes() {
   const list = playableHikes().filter((h) => h.sample !== false && h.child !== false);
-  const order = ["fuji", "dolomites"];
+  const order = ["fuji", "dolomites", "everest"];
   return list.sort((a, b) => {
     const ia = order.indexOf(a.id);
     const ib = order.indexOf(b.id);
@@ -62,12 +62,12 @@ export function childPlayableHikes() {
 
 export function childHikePickerCopy() {
   return {
-    sub: "富士山、多洛米蒂的一天",
-    subEn: "Mount Fuji, a day in the Dolomites",
-    talk: "选一座山。有你来过的富士山，还有你能走的那种多洛米蒂的路。",
-    talkEn: "Pick a mountain. There is Fuji, which you have been to, and a Dolomites walk of the kind you can do.",
-    lead: "点一座山，小人会自己走。示例山路会标明还不是你自己的足迹。",
-    leadEn: "Tap a mountain, and the little walker will start moving. Sample paths are labelled as not your own GPS track.",
+    sub: "富士山、多洛米蒂的一天、珠穆朗玛峰（你认识，但没有爬过）",
+    subEn: "Mount Fuji, a day in the Dolomites, Everest (you know it, but have not climbed it)",
+    talk: "选一座山。有你来过的富士山，你能走的那种多洛米蒂的路，还有你认识但没有爬过的珠穆朗玛峰。",
+    talkEn: "Pick a mountain. There is Fuji, which you have been to, a Dolomites walk of the kind you can do, and Everest, which you know but have not climbed.",
+    lead: "点一座山，小人会自己走。示例山路会标明还不是你自己的足迹。珠峰是你认识的山，不是你爬过的山。",
+    leadEn: "Tap a mountain, and the little walker will start moving. Sample paths are labelled as not your own GPS track. Everest is a mountain you know, not one you have climbed.",
   };
 }
 
@@ -111,13 +111,9 @@ export function childHikeTitle(hike) {
 }
 
 export function thumbViewForRoute(from, to) {
-  let lon0 = Math.min(from.lon, to.lon);
-  let lon1 = Math.max(from.lon, to.lon);
-  let lat0 = Math.min(from.lat, to.lat);
-  let lat1 = Math.max(from.lat, to.lat);
-  const padLon = Math.max(24, (lon1 - lon0) * 0.4);
-  const padLat = Math.max(12, (lat1 - lat0) * 0.55);
-  return { lon0: lon0 - padLon, lon1: lon1 + padLon, lat0: lat0 - padLat, lat1: lat1 + padLat };
+  const pts = greatCirclePoints(from.lat, from.lon, to.lat, to.lon, 64);
+  const bounds = routeViewBounds(pts, { padLonMin: 24, padLatMin: 12, padLonFrac: 0.4, padLatFrac: 0.55 });
+  return { lon0: bounds.lon0, lon1: bounds.lon1, lat0: bounds.lat0, lat1: bounds.lat1 };
 }
 
 export const PLANE_CRUISE_KMH = 850;
@@ -218,7 +214,9 @@ export function renderHikePicker(app, { goHome, onPick } = {}) {
     const peak = Number.isFinite(h.peakM)
       ? (h.officialSummit === false
         ? { zh: "今天走到约 " + Math.round(h.peakM) + " 米（不是 2,563 米的官方顶）", en: "Today's walk goes to about " + Math.round(h.peakM) + " m, not the official 2,563 m top" }
-        : { zh: "最高约 " + Math.round(h.peakM) + " 米", en: "About " + Math.round(h.peakM) + " m at the top" })
+        : h.knownOnly
+          ? { zh: "官方最高约 " + Math.round(h.peakM) + " 米。你认识它，但没有爬过。", en: "Officially about " + Math.round(h.peakM) + " m. You know it, but you have not climbed it." }
+          : { zh: "最高约 " + Math.round(h.peakM) + " 米", en: "About " + Math.round(h.peakM) + " m at the top" })
       : null;
     const sub = peak
       ? { zh: tag.zh + " · " + peak.zh, en: tag.en + " · " + peak.en }
