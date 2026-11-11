@@ -1,6 +1,7 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
 import { el, screen, topbar, hud, promptBox, fitCanvas, afterReveal, offerContinue } from "../ui.js";
+import { UI } from "../i18n.js";
 import { airportByCode, routeDistanceKm } from "../data.js";
 import { formatKm, formatHours, clamp } from "../geo.js";
 
@@ -295,23 +296,26 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false, so
       () => {
         box.remove();
         afterReveal("race", () => offerContinue(s, {
-          title: solo ? "要这么多天" : "再比一次？",
+          title: solo
+            ? { zh: "要这么多天", en: "It would take this long" }
+            : { zh: "再比一次？", en: "Race again?" },
           body: solo
-            ? ("骑自行车去" + destName + "大约要 " + formatHours(winner.hours) + "。这是按假设速度、不停歇算的。也可以再比一次速度。")
+            ? { zh: "骑自行车去" + destName + "大约要 " + formatHours(winner.hours) + "。这是按假设速度、不停歇算的。也可以再比一次速度。",
+                en: "Biking to " + destName + " would take about " + formatHours(winner.hours) + ". That uses an assumed speed with no stops. You can also race speeds again." }
             : (track.id === "paris"
-              ? "可以再比一次，或者看看骑车去巴黎要多久。"
-              : "可以加上飞机，或者骑车去东京看看要几天。"),
+              ? { zh: "可以再比一次，或者看看骑车去巴黎要多久。", en: "You can race again, or see how many days to bike to Paris." }
+              : { zh: "可以加上飞机，或者骑车去东京看看要几天。", en: "You can add a plane, or see how many days to bike to Tokyo." }),
           tone: "ok",
           goHome,
           actions: solo
             ? [
-                { label: "再看一次", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, soloId: "bike" }) },
-                { label: "加上飞机再比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+                { label: "再看一次", labelEn: "Watch again", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, soloId: "bike" }) },
+                { label: "加上飞机再比", labelEn: "Race again with a plane", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
               ]
             : [
-                { label: "加上飞机再比", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
-                { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", soloId: "bike" }) },
-                { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
+                { label: "加上飞机再比", labelEn: "Race again with a plane", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+                { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", labelEn: track.id === "paris" ? "Bike to Paris" : "Bike to Tokyo", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", soloId: "bike" }) },
+                { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", labelEn: track.id === "paris" ? "Compare on the way to Tokyo" : "Compare on the way to Paris", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
               ],
         }));
       },

@@ -5,7 +5,7 @@ import {
   airportByCode, routeDistanceKm,
 } from "../data.js";
 import {
-  greatCirclePoints, flightAltitudeKm, isaTempC, formatKm, formatHours, formatTemp,
+  greatCirclePoints, flightAltitudeKm, isaTempC, formatKm, formatKmEn, formatHours, formatHoursEn, formatHoursPair, formatTemp,
   lonLatToXY, clamp, lerp, smoothstep, interpolateGreatCircle,
 } from "../geo.js";
 import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup, drawEiffelTower } from "../art.js";
@@ -20,6 +20,37 @@ export function flightShowsEiffel(to) {
   const city = String(to.city || to.name || "");
   const code = String(to.icao || to.code || to.id || "").toUpperCase();
   return city.includes("巴黎") || /paris/i.test(String(to.cityEn || to.nameEn || "")) || code === "LFPG" || code === "CDG";
+}
+
+export function flightArrivalCopy(city, km) {
+  const isParis = city === "巴黎" || /paris/i.test(String(city));
+  const isTokyo = city === "东京" || /tokyo/i.test(String(city));
+  const title = isParis ? UI.arrivedParis : (isTokyo ? UI.arrivedTokyo : { zh: "到" + city + "了", en: "We've arrived in " + city });
+  const kmZh = formatKm(km);
+  const kmEn = formatKmEn(km);
+  return {
+    title,
+    firstBody: { zh: "这趟一共 " + kmZh + "。下一站，你来选。", en: "This flight was " + kmEn + " in all. You pick the next stop." },
+    body: isParis
+      ? { zh: "这趟一共 " + kmZh + "。你去过巴黎，今年也去了米兰。还可以再飞一次，去看米兰大教堂，或换一趟。", en: "This flight was " + kmEn + " in all. You have been to Paris, and you went to Milan this year. You can fly again, go see the Milan Duomo, or pick another flight." }
+      : { zh: "这趟一共 " + kmZh + "。还可以再飞一次，或换一趟。", en: "This flight was " + kmEn + " in all. You can fly again, or pick another flight." },
+    talkZh: "到" + city + "了！一共 " + kmZh + "。",
+    talkEn: "We've arrived in " + (isParis ? "Paris" : isTokyo ? "Tokyo" : city) + "! " + kmEn + " in all.",
+    isParis,
+  };
+}
+
+export function flightArrivalActions(city, { app, goHome, onDone, goZoom, tripId } = {}) {
+  const isParis = city === "巴黎" || /paris/i.test(String(city));
+  const actions = [
+    { label: UI.flyAgain.zh, labelEn: UI.flyAgain.en, kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId, firstPlay: false }) },
+    { label: isParis ? "去东京" : "去巴黎", labelEn: isParis ? "Fly to Tokyo" : "Fly to Paris", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId: isParis ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
+  ];
+  if (isParis) {
+    actions.push({ label: UI.seeDuomo.zh, labelEn: UI.seeDuomo.en, onClick: () => goToScaleJourney({ goZoom, onDone, goHome, stopId: "duomo" }) });
+  }
+  actions.push({ label: UI.goScale.zh, labelEn: UI.goScale.en, onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) });
+  return actions;
 }
 
 export function flightQuizBeats({ askArmed, asked, arrived }) {
@@ -99,14 +130,14 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
   let asked = false;
   let compare = false;
 
-  const assume = flightAssumptionCopy("约 " + formatKm(km));
-  const canvas = el("canvas", { class: "fill", "aria-label": "飞行地图" });
-  const switchBtn = firstPlay ? null : switchRouteButton("换一趟", () => {
+  const assume = flightAssumptionCopy("约 " + formatKm(km), "About " + formatKmEn(km));
+  const canvas = el("canvas", { class: "fill", "aria-label": "飞行地图 / Flight map" });
+  const switchBtn = firstPlay ? null : switchRouteButton(UI.switchFlight, () => {
     renderFlight(app, { goHome, onDone, goZoom });
   });
   const bar = topbar({
     title: { zh: trip.label, en: trip.labelEn || trip.label },
-    sub: { zh: assume.sub, en: assume.subEn || "Cruise 850 km/h (assumed)" },
+    sub: { zh: assume.sub, en: assume.subEn || "cruise 850 km/h (assumed)" },
     onBack: goHome,
     extra: switchBtn,
   });
@@ -242,28 +273,25 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     frozen = true;
     progress = 1;
     const city = to.city || "目的地";
-    talk("到" + city + "了！一共 " + formatKm(km) + "。");
+    const arrival = flightArrivalCopy(city, km);
+    talk(arrival.talkZh, arrival.talkEn);
     if (firstPlay) {
       afterReveal("flight", () => offerContinue(s, {
-        title: "到" + city + "了",
-        body: "这趟一共 " + formatKm(km) + "。下一站，你来选。",
+        title: arrival.title,
+        body: arrival.firstBody,
         tone: "ok",
         actions: [
-          { label: "下一站，你来选", kind: "ok", onClick: () => onDone?.() },
+          { label: UI.nextStopYouPick.zh, labelEn: UI.nextStopYouPick.en, kind: "ok", onClick: () => onDone?.() },
         ],
       }));
       return;
     }
     afterReveal("flight", () => offerContinue(s, {
-      title: "到" + city + "了",
-      body: "这趟一共 " + formatKm(km) + "。还可以再飞一次，或换一趟。",
+      title: arrival.title,
+      body: arrival.body,
       tone: "ok",
       goHome,
-      actions: [
-        { label: "再飞一次", kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId, firstPlay: false }) },
-        { label: city === "巴黎" ? "去东京" : "去巴黎", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId: city === "巴黎" ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
-        { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
-      ],
+      actions: flightArrivalActions(city, { app, goHome, onDone, goZoom, tripId }),
     }));
   }
 
@@ -288,7 +316,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     // "还要多久" matches the correct button (fires at >= 0.48, not exactly 0.5).
     const remain = metrics(progress, km).remainH;
     const choices = shuffle(halfTimeChoiceList(progress, km));
-    const box = promptBox("飞到一半，还要飞多久？", "先选一个。先不要看剩余时间。", choices, (c) => {
+    const box = promptBox(UI.halfwayQuiz, UI.halfwayQuizBody, choices, (c) => {
       const correct = !!c.ok;
       store.recordAnswer("flight", correct);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: remain, ratio: c.value / remain });
@@ -303,15 +331,18 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       }
     });
     s.append(box);
-    talk("飞到一半，还要飞多久？");
+    talk(UI.halfwayQuiz.zh, UI.halfwayQuiz.en);
   }
 
   function fireTemp() {
     asked = true;
     frozen = true;
-    const box = promptBox("飞得更高，外面会更冷还是更暖？", "先猜。先不要看外面气温。", [
-      { label: "更冷", ok: true },
-      { label: "更暖", ok: false },
+    const box = promptBox(
+      { zh: "飞得更高，外面会更冷还是更暖？", en: "As we fly higher, will it get colder or warmer outside?" },
+      { zh: "先猜。先不要看外面气温。", en: "Guess first. Don't look at the outside temperature yet." },
+      [
+      { label: "更冷", labelEn: "Colder", ok: true },
+      { label: "更暖", labelEn: "Warmer", ok: false },
     ], (c) => {
       store.recordAnswer("flight", !!c.ok);
       box.remove();
@@ -329,7 +360,10 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     frozen = true;
     const r = metrics(progress, km).remainH;
     const choices = shuffle(quarterChoiceList(progress, km));
-    const box = promptBox("飞了四分之一，还要多久？", "已经走了四分之一，剩下四分之三。", choices, (c) => {
+    const box = promptBox(
+      { zh: "飞了四分之一，还要多久？", en: "We've flown a quarter of the way. How much longer?" },
+      { zh: "已经走了四分之一，剩下四分之三。", en: "A quarter of the way is done, three quarters are left." },
+      choices, (c) => {
       store.recordAnswer("flight", !!c.ok);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: r, ratio: c.value / r });
       box.remove();
@@ -359,7 +393,10 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       if (d < bestD) { bestD = d; best = i; }
     });
     choices.forEach((c, i) => { c.ok = i === best; });
-    const box = promptBox("去巴黎比去东京远几倍？", "东京约 " + formatKm(tokyo) + "，巴黎约 " + formatKm(paris) + "。", choices, (c) => {
+    const box = promptBox(
+      { zh: "去巴黎比去东京远几倍？", en: "How many times farther is Paris than Tokyo?" },
+      { zh: "东京约 " + formatKm(tokyo) + "，巴黎约 " + formatKm(paris) + "。", en: "Tokyo is about " + formatKmEn(tokyo) + ", Paris about " + formatKmEn(paris) + "." },
+      choices, (c) => {
       store.recordAnswer("flight", !!c.ok);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: ratio, ratio: c.value / ratio });
       box.remove();
@@ -440,9 +477,9 @@ export function quarterChoiceList(progress, km, cruise = CRUISE_KMH) {
   const full = km / cruise;
   const halfRemain = remain * 0.5;
   return [
-    { label: formatHours(remain), ok: true, value: remain },
-    { label: formatHours(full), value: full },
-    { label: formatHours(halfRemain), value: halfRemain },
+    { label: formatHours(remain), labelEn: formatHoursEn(remain), ok: true, value: remain },
+    { label: formatHours(full), labelEn: formatHoursEn(full), value: full },
+    { label: formatHours(halfRemain), labelEn: formatHoursEn(halfRemain), value: halfRemain },
   ];
 }
 
@@ -451,9 +488,9 @@ export function halfTimeChoiceList(progress, km, cruise = CRUISE_KMH) {
   const full = km / cruise;
   const halfRemain = remain * 0.5;
   return [
-    { label: formatHours(remain), ok: true, value: remain },
-    { label: formatHours(full), value: full },
-    { label: formatHours(halfRemain), value: halfRemain },
+    { label: formatHours(remain), labelEn: formatHoursEn(remain), ok: true, value: remain },
+    { label: formatHours(full), labelEn: formatHoursEn(full), value: full },
+    { label: formatHours(halfRemain), labelEn: formatHoursEn(halfRemain), value: halfRemain },
   ];
 }
 
@@ -483,12 +520,13 @@ export function pullbackLayout(w, h) {
 
 /** Short child-facing sea-beat caption. Not a reading wall. */
 export const SEA_BEAT_CAPTION = "飞在海上";
+export const SEA_BEAT_CAPTION_EN = "Flying over the sea";
 
 export function seaBeatCaptionPos(w, h, horizonY) {
   const hy = Number.isFinite(horizonY) ? horizonY : h * 0.46;
   // Sit clearly in the sky, not on the (larger) plane.
   const y = Math.max(56, hy - 130);
-  return { x: w / 2, y, text: SEA_BEAT_CAPTION };
+  return { x: w / 2, y, text: SEA_BEAT_CAPTION, textEn: SEA_BEAT_CAPTION_EN };
 }
 
 /** First-play big-picture: pull back plane → sea → Earth → Moon. */
@@ -538,6 +576,11 @@ function startZoomOut(s, { from, to, km, goNext }) {
       ctx.font = "800 32px -apple-system, PingFang SC, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(cap.text, cap.x, cap.y);
+      if (cap.textEn) {
+        ctx.font = "700 18px -apple-system, sans-serif";
+        ctx.fillStyle = "rgba(244,239,228,0.85)";
+        ctx.fillText(cap.textEn, cap.x, cap.y + 26);
+      }
     }
     // Earth grows after the sea beat so a still can show the shrinking plane clearly.
     if (t >= 1.6) {

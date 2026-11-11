@@ -81,9 +81,10 @@ export function finishMode(onDone, goHome) {
 }
 
 /** The 「去尺度之旅」 button must open the scale journey, not just return home. */
-export function goToScaleJourney({ goZoom, onDone, goHome } = {}) {
+export function goToScaleJourney({ goZoom, onDone, goHome, stopId } = {}) {
   if (typeof goZoom === "function") {
-    goZoom();
+    if (stopId) goZoom({ id: "zoom", stopId });
+    else goZoom();
     return "zoom";
   }
   if (typeof onDone === "function") {

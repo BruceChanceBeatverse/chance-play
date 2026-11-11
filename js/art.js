@@ -923,7 +923,7 @@ export function drawDuomoCathedral(ctx, cx, baseY, width, height) {
 }
 
 /** Lujiazui towers seen from the Bund: Pearl, Jin Mao, SWFC, Shanghai Tower. */
-export function drawBundSkyline(ctx, cx, baseY, width, height, { highlight = "" } = {}) {
+export function drawBundSkyline(ctx, cx, baseY, width, height, { highlight = "", labels = false } = {}) {
   const W = Math.max(80, width);
   const H = Math.max(50, height);
   const left = cx - W / 2;
@@ -984,6 +984,22 @@ export function drawBundSkyline(ctx, cx, baseY, width, height, { highlight = "" 
   ctx.quadraticCurveTo(twX + W * 0.09, baseY - H * 0.5, twX + W * 0.055, baseY);
   ctx.closePath();
   ctx.fill();
+
+  if (labels) {
+    ctx.fillStyle = "#f4efe4";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.font = "700 11px -apple-system, PingFang SC, sans-serif";
+    const items = [
+      { x: jinX, y: baseY - H * 0.62, zh: "金茂 420.5 米" },
+      { x: pearlX, y: baseY - H * 0.82, zh: "东方明珠 468 米" },
+      { x: swX, y: baseY - H * 0.82, zh: "环球金融中心 492 米" },
+      { x: twX, y: baseY - H * 1.0, zh: "上海中心 632 米" },
+    ];
+    for (const it of items) {
+      ctx.fillText(it.zh, it.x, it.y);
+    }
+  }
   ctx.restore();
 }
 

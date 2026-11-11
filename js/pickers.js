@@ -120,10 +120,16 @@ export function thumbViewForRoute(from, to) {
   return { lon0: lon0 - padLon, lon1: lon1 + padLon, lat0: lat0 - padLat, lat1: lat1 + padLat };
 }
 
-export function flightAssumptionCopy(kmText) {
+export const PLANE_CRUISE_KMH = 850;
+
+export function flightAssumptionCopy(kmText, kmTextEn) {
+  const zhKm = typeof kmText === "object" && kmText ? (kmText.zh || "") : (kmText || "");
+  const enKm = typeof kmText === "object" && kmText
+    ? (kmText.en || kmTextEn || "")
+    : (kmTextEn || "");
   return {
-    sub: (kmText ? kmText + " · " : "") + "巡航 850 公里/小时（假设）",
-    subEn: (kmText ? kmText + " · " : "") + "cruise 850 km/h (assumed)",
+    sub: (zhKm ? zhKm + " · " : "") + "巡航 850 公里/小时（假设）",
+    subEn: (enKm ? enKm + " · " : "") + "cruise 850 km/h (assumed)",
     remainLabel: "还要多久",
     remainLabelEn: "Time left",
     altLabel: "高度（假设）",

@@ -5,6 +5,16 @@
 import { DEFAULT_PROFILE, DEFAULT_TRIPS, DEFAULT_RACERS, SAMPLE_HIKES, MODE_META, resolveCard } from "./data.js";
 import { cosmosUnlockFromScale } from "./i18n.js";
 
+/** Homepage / store level. After the scale journey has been walked (including
+ *  a waystation hop that reaches the universe), do not leave 尺度之旅 at 1
+ *  while the footer says it was already walked. */
+export function displayedModeLevel(state, mode) {
+  const lv = Number(state && state.levels && state.levels[mode]) || 1;
+  if (mode === "zoom" && state && state.scaleJourneyComplete && lv < 2) return 2;
+  return lv;
+}
+
+
 const KEY = "chance-scale-v1";
 const listeners = new Set();
 
@@ -256,7 +266,7 @@ export const store = {
   isTodayTaskComplete(taskId) {
     return !!taskId && (state.todayCompletedTasks || []).includes(taskId);
   },
-  level(mode) { return state.levels[mode] || 1; },
+  level(mode) { return displayedModeLevel(state, mode); },
   cosmosUnlocked() {
     return cosmosUnlockFromScale(state);
   },

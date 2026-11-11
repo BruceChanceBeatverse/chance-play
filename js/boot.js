@@ -36,7 +36,10 @@ function go(name, arg) {
   if (name === "teach") { renderTeach(app, go); return; }
   if (name === "mode") {
     const id = typeof arg === "string" ? arg : arg && arg.id;
-    const goZoom = () => go("mode", "zoom");
+    const goZoom = (zoomArg) => {
+      if (zoomArg && zoomArg.stopId) go("mode", { id: "zoom", stopId: zoomArg.stopId });
+      else go("mode", "zoom");
+    };
     const opts = { goHome, onDone: afterMode, goZoom };
     if (arg && typeof arg === "object") {
       if (arg.tripId) opts.tripId = arg.tripId;
@@ -44,6 +47,7 @@ function go(name, arg) {
       if (arg.trackId) opts.trackId = arg.trackId;
       if (arg.allRacers) opts.allRacers = arg.allRacers;
       if (arg.taskId) opts.taskId = arg.taskId;
+      if (arg.stopId) opts.stopId = arg.stopId;
     }
     if (id === "flight") renderFlight(app, opts);
     else if (id === "race") renderRace(app, opts);

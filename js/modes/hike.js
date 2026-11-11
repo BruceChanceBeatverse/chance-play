@@ -8,6 +8,13 @@ import { bi, UI, clampSeekToBeats } from "../i18n.js";
 
 /** Watchable play duration for the full trail (not a real hike). */
 export const HIKE_PLAY_SECONDS = 20;
+/** Fuji felt rushed at 20 s; give the official 3,776 m climb more time. */
+export const FUJI_PLAY_SECONDS = 40;
+
+export function hikePlaySeconds(hike) {
+  if (hike && hike.id === "fuji") return FUJI_PLAY_SECONDS;
+  return HIKE_PLAY_SECONDS;
+}
 
 /**
  * Speed up long flat approaches (Fuji's first kilometres barely climb)
@@ -27,11 +34,26 @@ export function hikeAutoPace(t, hike) {
 }
 
 /** Advance the walker when it is not being dragged and no question is holding it. */
-export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false, hike = null } = {}) {
-  if (dragging || asked) return prev;
+export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false, celebrated = false, hike = null } = {}) {
+  if (dragging || asked || celebrated) return prev;
   const dt = Math.max(0, Math.min(0.05, dtSec));
   const pace = hikeAutoPace(prev, hike);
-  return Math.min(1, prev + (dt / HIKE_PLAY_SECONDS) * pace);
+  const seconds = hikePlaySeconds(hike);
+  return Math.min(1, prev + (dt / seconds) * pace);
+}
+
+/** Keep the walker on the official summit while the finish dialog is open. */
+export function hikePinnedT(hike, t, { celebrated = false } = {}) {
+  if (!celebrated || !hike) return t;
+  const pts = hike.points || [];
+  const totalKm = pts.length ? pts[pts.length - 1].distKm : 1;
+  const peak = hikePeakPoint(hike);
+  if (!totalKm) return t;
+  return (peak.distKm || 0) / totalKm;
+}
+
+export function hikeProgressHeld({ dragging = false, asked = false, celebrated = false, revealOpen = false, finishOpen = false } = {}) {
+  return !!(dragging || asked || celebrated || revealOpen || finishOpen);
 }
 
 /** Always show the official peak, not a noisy sample-point rounding. */
@@ -190,7 +212,7 @@ export function hikeTrailNote(hike) {
     return { zh: "你来过这座山。官方 3,776 米。你记得它有三千八百多米。这条线还不是你自己走的足迹。", en: "You've been to this mountain. Officially 3,776 m. You remember it as more than 3,800 m. This path is not your own GPS track." };
   }
   if (hike.id === "dolomites" || hike.livedAbility) {
-    return { zh: "这是你能走的那种路：一次大约 12 公里，爬升大约 900 米。这条线只是那种路的样子，不是一条量过的足迹。", en: "This is the kind of walk you can do: about 12 km, with about 900 m of climbing. This line only shows the kind of walk it is, not a measured GPS track." };
+    return { zh: "这座平顶山像你认识的大板凳山，斯西利亚尔（Schlern / Sciliar）。一次大约 12 公里，爬升大约 900 米。不是 2,563 米的登顶，也不是一条量过的足迹。", en: "This flat top looks like the table-top mountain you know, 大板凳山, Schlern / Sciliar. About 12 km, with about 900 m of climbing. Not a 2,563 m summit, and not a measured GPS track." };
   }
   if (hike.id === "sheshan" || hike.contrastOnly) {
     return { zh: "上海附近一座大约 99 米的小山，用来比一比。不是你爬过的山。", en: "A small hill near Shanghai, about 99 m, for contrast. Not a mountain you have climbed." };
@@ -209,9 +231,9 @@ export function hikeCelebrateCopy(hike, officialPeak) {
       bannerZh: "走完了！",
       bannerEn: "You finished it!",
       title: { zh: "走完了", en: "You finished it" },
-      body: { zh: "大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。这条线只是那种路的样子。", en: "About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. This line only shows the kind of walk it is." },
-      talkZh: "走完了！大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。不是一条量过的足迹。",
-      talkEn: "You finished it! About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. It is not a measured GPS track.",
+      body: { zh: "这座平顶山像你认识的大板凳山，斯西利亚尔（Schlern / Sciliar）。官方最高点大约 2,563 米，那是你认识的那座山。今天大约 " + km + " 公里，爬升大约 " + gain + " 米，是你能走的那种路，不是 2,563 米的登顶。", en: "This flat top looks like the table-top mountain you know, 大板凳山, Schlern / Sciliar. The official high point is about 2,563 m — that is the mountain you know. Today is about " + km + " km, with about " + gain + " m of climbing: the kind of walk you can do, not a summit of that 2,563 m peak." },
+      talkZh: "走完了！大约 " + km + " 公里，爬升大约 " + gain + " 米。这座平顶山像你认识的大板凳山，斯西利亚尔。不是 2,563 米的登顶，也不是一条量过的足迹。",
+      talkEn: "You finished it! About " + km + " km, with about " + gain + " m of climbing. This flat top looks like 大板凳山, Schlern / Sciliar, the mountain you know. It is not a 2,563 m summit, and not a measured GPS track.",
       smallZh: name + "，大约 " + km + " 公里，爬升大约 " + gain + " 米",
       smallEn: nameEn + ", about " + km + " km, about " + gain + " m of climbing",
     };
@@ -361,9 +383,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     const ts = now || performance.now();
     const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
     lastTs = ts;
-    if (asked) hint.dismiss();
-    if (!dragging && !asked && t < 1) {
-      t = autoHikeProgress(t, dt, { dragging, asked, hike });
+    if (asked || celebrated) hint.dismiss();
+    if (celebrated) {
+      t = hikePinnedT(hike, t, { celebrated: true });
+    } else if (!dragging && !asked && t < 1) {
+      t = autoHikeProgress(t, dt, { dragging, asked, celebrated, hike });
     }
     const hereNow = at(t);
     // Celebrate arrival before any quiz, so the peak question cannot steal the summit.
@@ -413,7 +437,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     ctx.fillText("🚶", hx, hy - fig.lift);
     ctx.textBaseline = "alphabetic";
     // Label after the figure so 「最高 N 米」 stays fully legible at the summit.
-    const lab = hikePeakLabelPos(px, py, w, fig, { x: hx, y: hy - fig.lift }, { switchBox: hikeSwitchBtnBox(w) });
+    const lab = hikePeakLabelPos(px, py, w, fig, { x: hx, y: hy - fig.lift }, { switchBox: hikeSwitchBtnBox(w), titleBox: hikeTitleChipBox(w) });
     ctx.fillStyle = "#0b1520";
     ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
     ctx.textAlign = lab.align;
@@ -529,7 +553,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       goHome,
       actions: [
         { label: "继续走到山顶", labelEn: "Keep walking to the top", kind: "ok", onClick: () => resumeTrail() },
-        { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
+        { label: "再爬一座", labelEn: "Climb another", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
       ],
     });
     setTimeout(() => {
@@ -709,8 +733,9 @@ export function hikeSwitchBtnBox(w) {
 
 export function hikeTitleChipBox(w) {
   const left = 18 + 72 + 12;
-  const maxW = Math.max(0, w - 160);
-  const top = 14, height = 72;
+  // Leave a clear gap for 「换一座山」 and for 「最高 N 米」.
+  const maxW = Math.max(0, Math.min(560, w - 18 - 72 - 12 - 170));
+  const top = 14, height = 88;
   return { left, right: left + maxW, top, bottom: top + height };
 }
 
@@ -754,16 +779,24 @@ export function hikePeakLabelPos(px, py, w, fig = hikeFigureSize(), walker, chro
     pack("left", Math.min(w - 16 - textW, rightX + 24), py - 8),
   ];
   const sw = chrome.switchBox;
-  const hitsSwitch = (lab) => sw && !(lab.right < sw.left - 6 || lab.left > sw.right + 6 || lab.bottom < sw.top - 6 || lab.top > sw.bottom + 6);
+  const title = chrome.titleBox;
+  const hitsBox = (lab, box) => box && !(lab.right < box.left - 6 || lab.left > box.right + 6 || lab.bottom < box.top - 6 || lab.top > box.bottom + 6);
+  const hitsChrome = (lab) => hitsBox(lab, sw) || hitsBox(lab, title);
+  const belowTitle = title ? (title.bottom + 18) : 96;
   for (const lab of candidates) {
-    if (onCanvas(lab) && !overlaps(lab) && !hitsSwitch(lab) && lab.top >= 96) return lab;
+    if (onCanvas(lab) && !overlaps(lab) && !hitsChrome(lab) && lab.top >= belowTitle) return lab;
   }
   for (const lab of candidates) {
-    if (onCanvas(lab) && !overlaps(lab) && !hitsSwitch(lab)) return lab;
+    if (onCanvas(lab) && !overlaps(lab) && !hitsChrome(lab)) return lab;
   }
-  // Prefer the left of a right-hand peak, below the top bar, so 「换一座山」 cannot cover it.
-  const safeY = Math.max(py - 8, 110);
+  // Prefer below the title chip, left of a right-hand peak, so 「最高 N 米」 cannot sit under "GPS track".
+  const safeY = Math.max(py - 8, belowTitle + 16);
   const leftSafe = pack("right", Math.max(16 + textW, Math.min(px, wx - r) - pad), safeY);
+  if (hitsChrome(leftSafe)) {
+    leftSafe.y = belowTitle + 16;
+    leftSafe.top = leftSafe.y - textH;
+    leftSafe.bottom = leftSafe.y;
+  }
   return leftSafe;
 }
 

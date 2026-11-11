@@ -107,6 +107,17 @@ export const UI = {
   compareSpeed: { zh: "比一比速度", en: "Compare speeds" },
   flyTokyo: { zh: "飞去东京", en: "Fly to Tokyo" },
   flyParis: { zh: "飞去巴黎", en: "Fly to Paris" },
+  seeDuomo: { zh: "去看米兰大教堂", en: "See the Milan Duomo" },
+  seeNumberline: { zh: "放到数轴上看", en: "See it on the number line" },
+  rideElevator: { zh: "坐十倍电梯", en: "Ride the times-ten elevator" },
+  whoBigger: { zh: "谁更大谁更快", en: "Who is bigger or faster?" },
+  flyOverSea: { zh: "飞在海上", en: "Flying over the sea" },
+  arrivedTokyo: { zh: "到东京了", en: "We've arrived in Tokyo" },
+  arrivedParis: { zh: "到巴黎了", en: "We've arrived in Paris" },
+  arrivedAt: { zh: "到了", en: "Arrived" },
+  nextStopYouPick: { zh: "下一站，你来选", en: "You pick the next stop" },
+  halfwayQuiz: { zh: "飞到一半，还要飞多久？", en: "We're halfway. How much longer to fly?" },
+  halfwayQuizBody: { zh: "先选一个。先不要看剩余时间。", en: "Pick one first. Don't look at the time left yet." },
   climbThis: { zh: "爬这座山", en: "Climb this mountain" },
   summit: { zh: "到山顶了", en: "You reached the top" },
   footerWalk: { zh: "慢慢玩，走完尺度之旅", en: "Take your time, and walk the scale journey" },
@@ -137,7 +148,7 @@ export function clampSeekToBeats(pos, beats) {
 }
 
 export function lingerShouldAutoPause(stop) {
-  return !!(stop && stop.lingerMode);
+  return !!(stop && (stop.lingerMode || (Array.isArray(stop.invites) && stop.invites.length)));
 }
 
 /** When a linger CTA appears, freeze the walk on that stop so a pending
@@ -162,19 +173,34 @@ export function lingerAutoPausePatch(stop, { auto, minL, maxL } = {}) {
  * dwell expiry must not walk past the button.
  */
 export function lingerAutoHold(stop, { close = false, auto = false, releasedId = "" } = {}) {
-  const at = !!(close && stop && stop.lingerMode);
+  const at = !!(close && stop && (stop.lingerMode || (Array.isArray(stop.invites) && stop.invites.length)));
   if (!at) return { at: false, pause: false, holdCruise: false, show: false };
   const released = releasedId === stop.id;
   return { at: true, pause: !!auto && !released, holdCruise: !released, show: true };
 }
 
-export function lingerButtonCopy(stop) {
-  if (!stop || !stop.lingerMode) return { zh: "停一停", en: "Stop here" };
-  if (stop.lingerMode === "flight") return (stop.id === "paris" || stop.tripId === "pvg-cdg") ? UI.flyParis : UI.flyTokyo;
-  if (stop.lingerMode === "hike") return UI.climbThis;
-  if (stop.lingerMode === "race") return UI.compareSpeed;
-  if (stop.lingerMode === "cosmos") return UI.seeLight;
+export function lingerButtonCopy(stop, mode) {
+  const kind = mode || (stop && stop.lingerMode);
+  if (!kind) return { zh: "停一停", en: "Stop here" };
+  if (kind === "flight") return (stop && (stop.id === "paris" || stop.tripId === "pvg-cdg")) ? UI.flyParis : UI.flyTokyo;
+  if (kind === "hike") return UI.climbThis;
+  if (kind === "race") return UI.compareSpeed;
+  if (kind === "cosmos") return UI.seeLight;
+  if (kind === "numberline") return UI.seeNumberline;
+  if (kind === "elevator") return UI.rideElevator;
+  if (kind === "compare") return UI.whoBigger;
   return { zh: "停一停", en: "Stop here" };
+}
+
+/** Primary linger plus extra invitations (number line / elevator / compare). */
+export function lingerInvitesFor(stop) {
+  if (!stop) return [];
+  const out = [];
+  if (stop.lingerMode) out.push(stop.lingerMode);
+  if (Array.isArray(stop.invites)) {
+    for (const id of stop.invites) if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
 }
 
 export const ZOOM_RESUME_KEY = "chance-zoom-resume";

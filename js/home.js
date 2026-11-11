@@ -1,4 +1,4 @@
-import { store } from "./store.js";
+import { store, displayedModeLevel } from "./store.js";
 import { unlockAudio, talk, sfx, playParentTask } from "./audio.js";
 import { el, screen, modeGlyph, starfield, secretParentHotspot, toast } from "./ui.js";
 import { MODE_META, WEEKDAY_THEME, TASK_BANK } from "./data.js";
@@ -48,7 +48,7 @@ export function renderHome(app, go) {
     },
       el("div", { class: "glyph" }, modeGlyph(m.id)),
       el("div", { class: "label" }, bi(m.name, m.nameEn)),
-      el("div", { class: "lvl" }, levelCopy(st.levels[m.id] || 1)),
+      el("div", { class: "lvl" }, levelCopy(displayedModeLevel(st, m.id))),
     );
     if (locked) tile.append(el("div", { class: "lock-badge" }, "🔒"));
     grid.append(tile);

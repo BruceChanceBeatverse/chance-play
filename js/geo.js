@@ -202,6 +202,18 @@ export function formatKm(km, digits = 0) {
   return (km * 1000).toPrecision(2) + " 米";
 }
 
+/** English twin of formatKm, for bilingual subtitles. Never leave a bare 约/公里 in the English line. */
+export function zhDistanceToEn(text) {
+  const raw = String(text || "").replace(/^约\s*/, "").trim();
+  if (!raw) return "";
+  return "about " + raw
+    .replace(/百万公里/g, " million km")
+    .replace(/公里/g, " km")
+    .replace(/米/g, " m")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function formatHours(h) {
   if (!Number.isFinite(h) || h < 0) return "—";
   const secs = h * 3600;
@@ -227,6 +239,69 @@ export function formatHours(h) {
   const years = days / 365.25;
   return years.toFixed(1).replace(/\.0$/, "") + " 年";
 }
+
+export function formatKmEn(km, digits = 0) {
+  if (!Number.isFinite(km)) return "—";
+  if (Math.abs(km) < 1e-9) return "0 km";
+  if (km >= 1e6) return (km / 1e6).toFixed(1).replace(/\.0$/, "") + " million km";
+  if (km >= 1000) return Math.round(km).toLocaleString("en-US") + " km";
+  if (km >= 10) return km.toFixed(digits).replace(/\.0$/, "") + " km";
+  if (km >= 1) return km.toFixed(1) + " km";
+  if (km >= 0.001) return Math.round(km * 1000) + " m";
+  return (km * 1000).toPrecision(2) + " m";
+}
+
+export function formatHoursEn(h) {
+  if (!Number.isFinite(h) || h < 0) return "—";
+  const secs = h * 3600;
+  if (secs < 90) {
+    const s = Math.round(secs);
+    if (s === 0) return h > 0 ? "less than 1 s" : "0 s";
+    return s + " s";
+  }
+  if (h < 1) {
+    const m = Math.round(h * 60);
+    return m === 1 ? "1 minute" : m + " minutes";
+  }
+  if (h < 48) {
+    const hours = Math.floor(h);
+    const mins = Math.round((h - hours) * 60);
+    const hWord = hours === 1 ? "1 hour" : hours + " hours";
+    if (mins === 0) return hWord;
+    if (mins === 60) {
+      const n = hours + 1;
+      return n === 1 ? "1 hour" : n + " hours";
+    }
+    const mWord = mins === 1 ? "1 minute" : mins + " minutes";
+    return hWord + " " + mWord;
+  }
+  const days = h / 24;
+  if (days < 14) {
+    const d = days.toFixed(1).replace(/\.0$/, "");
+    return d + (d === "1" ? " day" : " days");
+  }
+  if (days < 60) {
+    const d = Math.round(days);
+    return d + (d === 1 ? " day" : " days");
+  }
+  const months = days / 30.44;
+  if (months < 18) {
+    const m = months.toFixed(1).replace(/\.0$/, "");
+    return m + (m === "1" ? " month" : " months");
+  }
+  const years = days / 365.25;
+  const y = years.toFixed(1).replace(/\.0$/, "");
+  return y + (y === "1" ? " year" : " years");
+}
+
+export function formatKmPair(km, digits = 0) {
+  return { zh: formatKm(km, digits), en: formatKmEn(km, digits) };
+}
+
+export function formatHoursPair(h) {
+  return { zh: formatHours(h), en: formatHoursEn(h) };
+}
+
 
 export function formatTemp(c) {
   const n = Math.round(c);

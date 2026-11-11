@@ -61,7 +61,7 @@ button, input, textarea, select { font-family: inherit; }
 
 /* Top chrome */
 .topbar {
-  position: relative; z-index: 5;
+  position: relative; z-index: 12;
   display: flex; align-items: center; gap: 12px;
   padding: 14px 18px 8px;
   pointer-events: none;
@@ -87,15 +87,26 @@ button, input, textarea, select { font-family: inherit; }
   letter-spacing: 0.04em;
   box-shadow: var(--shadow);
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
-  max-width: calc(100% - 160px);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 200px);
 }
-.title-chip .sub { color: var(--muted); font-size: 16px; margin-left: 0; }
+.title-chip .sub {
+  color: var(--muted);
+  font-size: 16px;
+  margin-left: 0;
+  max-width: 100%;
+  line-height: 1.35;
+}
 .pick-btn {
   width: auto;
   min-width: var(--tap);
   padding: 0 16px;
   font-size: 18px;
   font-weight: 800;
+  position: relative;
+  z-index: 13;
+  flex: 0 0 auto;
 }
 .spacer { flex: 1; }
 
@@ -1159,6 +1170,12 @@ button, input, textarea, select { font-family: inherit; }
   line-break: strict;
 }
 .zoom-ways button.here { outline: 2px solid var(--gold); color: var(--gold); }
+.zoom-readout .blurb, .zoom-readout .name {
+  line-break: strict;
+  word-break: keep-all;
+}
+.zoom-mode-entry { flex-direction: column; align-items: flex-start; gap: 8px; }
+
 .zoom-cruise {
   position: absolute;
   right: 16px;

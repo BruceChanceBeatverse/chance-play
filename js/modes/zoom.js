@@ -8,7 +8,10 @@ import { renderFlight } from "./flight.js";
 import { renderHike } from "./hike.js";
 import { renderRace } from "./race.js";
 import { renderCosmos } from "./cosmos.js";
-import { bi, UI, lingerShouldAutoPause, lingerAutoPausePatch, lingerAutoHold, lingerButtonCopy, saveZoomResume, loadZoomResume, clearZoomResume, serializeZoomResume } from "../i18n.js";
+import { renderNumberline } from "./numberline.js";
+import { renderCompare } from "./compare.js";
+import { renderElevator } from "./elevator.js";
+import { bi, UI, lingerShouldAutoPause, lingerAutoPausePatch, lingerAutoHold, lingerButtonCopy, lingerInvitesFor, saveZoomResume, loadZoomResume, clearZoomResume, serializeZoomResume } from "../i18n.js";
 import {
   resolveScaleStops, nearestScaleStop, prettyScaleLine, formatScaleMetres, prettyScaleAtStop,
   SCALE_WAYSTATIONS, PLANCK_LENGTH_M, OBSERVABLE_UNIVERSE_DIAMETER_M,
@@ -27,7 +30,7 @@ export const ZOOM_CRUISE_RATE = 0.085;
 export function zoomJumpStyle(id, { fromStart = false } = {}) {
   if (fromStart) return "start-at";
   if (id === "universe" || id === "planck") return "hop";
-  if (id === "me" || id === "ant" || id === "fuji" || id === "oriental-pearl" || id === "tokyo") return "hop";
+  if (id === "me" || id === "ant" || id === "fuji" || id === "oriental-pearl" || id === "tokyo" || id === "duomo") return "hop";
   return "cruise";
 }
 
@@ -78,7 +81,7 @@ export function zoomDwellForStop(layer, { cruiseGoal = null, atGoal = false } = 
   return layer?.familiar ? 7.5 : (layer?.generated ? 3.4 : 5.5);
 }
 
-export function renderZoom(app, { goHome, onDone } = {}) {
+export function renderZoom(app, { goHome, onDone, stopId } = {}) {
   const s = screen();
   s.classList.add("mode-zoom");
   const stops = resolveScaleStops(store.get().profile, store.get().hikes);
@@ -218,6 +221,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (style !== "cruise" && cruiseGoal == null) maybeAsk();
   }
 
+  if (stopId) jumpTo(stopId, true);
+
   function nearest(ls) {
     const metres = pow10(ls);
     const { stop, close } = nearestScaleStop(stops, metres);
@@ -231,32 +236,43 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     talk(line);
   }
 
+  function openLingerMode(stop, kind) {
+    auto = false;
+    persistZoom();
+    if (isRevealOpen()) dismissReveal();
+    const backToZoom = () => renderZoom(app, { goHome, onDone });
+    if (kind === "flight") {
+      renderFlight(app, { goHome, onDone: backToZoom, tripId: stop.tripId || "pvg-hnd" });
+    } else if (kind === "hike") {
+      renderHike(app, { goHome, onDone: backToZoom, hikeId: stop.hikeId || "fuji" });
+    } else if (kind === "race") {
+      renderRace(app, { goHome, onDone: backToZoom, trackId: "tokyo", allRacers: true });
+    } else if (kind === "cosmos") {
+      const destId = stop.id === "sun" ? "sun" : "moon";
+      renderCosmos(app, { goHome, onDone: backToZoom, destId, tab: "light", forceOpen: true });
+    } else if (kind === "numberline") {
+      renderNumberline(app, { goHome, onDone: backToZoom });
+    } else if (kind === "compare") {
+      renderCompare(app, { goHome, onDone: backToZoom });
+    } else if (kind === "elevator") {
+      renderElevator(app, { goHome, onDone: backToZoom });
+    }
+  }
+
   function showLinger(stop) {
     linger.replaceChildren();
-    if (!stop || !stop.lingerMode) {
+    const invites = lingerInvitesFor(stop);
+    if (!stop || !invites.length) {
       linger.style.display = "none";
       delete linger.dataset.stopId;
       return;
     }
-    const label = lingerButtonCopy(stop);
-    const btn = el("button", {}, label);
-    btn.addEventListener("click", () => {
-      auto = false;
-      persistZoom();
-      if (isRevealOpen()) dismissReveal();
-      const backToZoom = () => renderZoom(app, { goHome, onDone });
-      if (stop.lingerMode === "flight") {
-        renderFlight(app, { goHome, onDone: backToZoom, tripId: stop.tripId || "pvg-hnd" });
-      } else if (stop.lingerMode === "hike") {
-        renderHike(app, { goHome, onDone: backToZoom, hikeId: stop.hikeId || "fuji" });
-      } else if (stop.lingerMode === "race") {
-        renderRace(app, { goHome, onDone: backToZoom, trackId: "tokyo", allRacers: true });
-      } else if (stop.lingerMode === "cosmos") {
-        const destId = stop.id === "sun" ? "sun" : "moon";
-        renderCosmos(app, { goHome, onDone: backToZoom, destId, tab: "light", forceOpen: true });
-      }
-    });
-    linger.append(btn);
+    for (const kind of invites) {
+      const label = lingerButtonCopy(stop, kind);
+      const btn = el("button", {}, label);
+      btn.addEventListener("click", () => openLingerMode(stop, kind));
+      linger.append(btn);
+    }
     linger.style.display = "flex";
     linger.dataset.stopId = stop.id || "";
     const pause = lingerAutoPausePatch(stop, { auto, minL, maxL });
@@ -1038,7 +1054,7 @@ function drawHero(ctx, cx, cy, layer, close, opts = {}) {
   } else if (id === "duomo") {
     drawDuomoCathedral(ctx, 0, 52, 180, 130);
   } else if (id === "oriental-pearl" || id === "jinmao" || id === "swfc" || id === "shanghai-tower") {
-    drawBundSkyline(ctx, 0, 52, 220, 140, { highlight: id });
+    drawBundSkyline(ctx, 0, 52, 220, 140, { highlight: id, labels: true });
   } else if (id === "schlern" || id === "dolomites" || id === "chance-climb") {
     drawTableMountain(ctx, 0, 48, 200, 120);
   } else if (id === "earth") {
