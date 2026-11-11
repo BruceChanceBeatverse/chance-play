@@ -7,7 +7,7 @@ import { bi, UI, clampSeekToBeats } from "../i18n.js";
 
 
 /** Watchable play duration for the full trail (not a real hike). */
-export const HIKE_PLAY_SECONDS = 16;
+export const HIKE_PLAY_SECONDS = 20;
 
 /**
  * Speed up long flat approaches (Fuji's first kilometres barely climb)
@@ -20,8 +20,9 @@ export function hikeAutoPace(t, hike) {
   const dElev = Math.abs((ahead.elev ?? 0) - (here.elev ?? 0));
   const dDist = Math.abs((ahead.dist ?? 0) - (here.dist ?? 0));
   const climbPerKm = dDist > 1e-6 ? dElev / dDist : 0;
-  if (climbPerKm < 40) return 3.4;
-  if (climbPerKm < 100) return 2;
+  // Keep a modest boost on long flats, but never shoot the walker to the top.
+  if (climbPerKm < 40) return 2;
+  if (climbPerKm < 100) return 1.45;
   return 1;
 }
 
@@ -47,6 +48,7 @@ export function hikePeakPoint(hike) {
   const official = hikeDisplayPeakM(hike);
   const top = pts.filter((p) => Math.abs((p.elevM || 0) - official) < 0.05);
   if (top.length) {
+    if (hike.peakAlign === "end" || hike.livedAbility) return top[top.length - 1];
     const mid = (top[0].distKm + top[top.length - 1].distKm) / 2;
     return top.reduce((a, p) => Math.abs(p.distKm - mid) < Math.abs(a.distKm - mid) ? p : a);
   }
@@ -94,9 +96,39 @@ export function hikeHudReading(here, hike) {
   return {
     atSummit,
     elevM: atSummit ? official : (here?.elev ?? 0),
+    distKm: here?.dist ?? 0,
     deg: atSummit ? 0 : (here?.deg ?? 0),
     slopeWord: hikeSlopeWord(here?.deg ?? 0, { atSummit }),
   };
+}
+
+/** Kid-facing trail distance. At the end of a lived 12 km walk, show 12 公里, not 11.96. */
+export function hikeDistLabel(distKm, hike) {
+  const d = Number(distKm);
+  const total = Number(hike?.lengthKm);
+  const fallback = (hike?.points && hike.points.length) ? hike.points[hike.points.length - 1].distKm : NaN;
+  const end = Number.isFinite(total) && total > 0 ? total : fallback;
+  if (Number.isFinite(end) && Number.isFinite(d) && Math.abs(d - end) <= 0.15) {
+    const nice = Math.abs(end - Math.round(end)) < 0.05 ? String(Math.round(end)) : end.toFixed(1).replace(/\.0$/, "");
+    return { zh: nice + " 公里", en: nice + " km" };
+  }
+  const shown = Number.isFinite(d) ? d.toFixed(2) : "0.00";
+  return { zh: shown + " 公里", en: shown + " km" };
+}
+
+/** Mid-path height choices must match the HUD at the moment the question is asked. */
+export function hikeMidHeightChoices(here, hike) {
+  const elev = Math.round(Number(here?.elev) || 0);
+  const peak = Math.round(hikeDisplayPeakM(hike));
+  let low = Math.round(elev * 0.5);
+  if (low === elev) low = Math.max(0, elev - Math.max(20, Math.round(elev * 0.2)));
+  let high = peak;
+  if (high === elev) high = elev + Math.max(20, Math.round(elev * 0.2));
+  return [
+    { label: elev + " 米", labelEn: elev + " m", ok: true, metres: elev },
+    { label: high + " 米", labelEn: high + " m", metres: high },
+    { label: low + " 米", labelEn: low + " m", metres: low },
+  ];
 }
 
 /** A mid-trail quiz (which mountain, temperature, slope, halfway height) never finishes the hike. */
@@ -158,7 +190,7 @@ export function hikeTrailNote(hike) {
     return { zh: "你来过这座山。官方 3,776 米。你记得它有三千八百多米。这条线还不是你自己走的足迹。", en: "You've been to this mountain. Officially 3,776 m. You remember it as more than 3,800 m. This path is not your own GPS track." };
   }
   if (hike.id === "dolomites" || hike.livedAbility) {
-    return { zh: "这是你能走的那种路：一次大约 12 公里，爬升大约 900 米。不是一条量过的足迹。", en: "This is the kind of walk you can do: about 12 km, with about 900 m of climbing. It is not a measured GPS track." };
+    return { zh: "这是你能走的那种路：一次大约 12 公里，爬升大约 900 米。这条线只是那种路的样子，不是一条量过的足迹。", en: "This is the kind of walk you can do: about 12 km, with about 900 m of climbing. This line only shows the kind of walk it is, not a measured GPS track." };
   }
   if (hike.id === "sheshan" || hike.contrastOnly) {
     return { zh: "上海附近一座大约 99 米的小山，用来比一比。不是你爬过的山。", en: "A small hill near Shanghai, about 99 m, for contrast. Not a mountain you have climbed." };
@@ -177,7 +209,7 @@ export function hikeCelebrateCopy(hike, officialPeak) {
       bannerZh: "走完了！",
       bannerEn: "You finished it!",
       title: { zh: "走完了", en: "You finished it" },
-      body: { zh: "大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。不是一条量过的足迹。", en: "About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. It is not a measured GPS track." },
+      body: { zh: "大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。这条线只是那种路的样子。", en: "About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. This line only shows the kind of walk it is." },
       talkZh: "走完了！大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。不是一条量过的足迹。",
       talkEn: "You finished it! About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. It is not a measured GPS track.",
       smallZh: name + "，大约 " + km + " 公里，爬升大约 " + gain + " 米",
@@ -392,7 +424,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     const hideTemp = asked && (quizKind === "temp" || quizKind === "mid");
     const hideSlope = asked && quizKind === "slope";
     board.update([
-      here.dist.toFixed(2) + " 公里",
+      hikeDistLabel(here.dist, hike).zh,
       hideElev ? "？" : Math.round(reading.elevM) + " 米",
       hideSlope ? "？" : (reading.atSummit ? "山顶" : reading.slopeWord + " " + Math.round(reading.deg) + "°"),
       hideTemp ? "？" : formatTemp(here.temp),
@@ -547,15 +579,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     quizKind = "mid";
     askedKinds.add("mid");
     store.rememberAsked("hike:mid");
-    const mid = at(0.5);
+    const mid = at(t);
     const box = promptBox(
       { zh: "走到一半，大约有多高？", en: "About how high are we at the halfway point?" },
       { zh: "先猜，不要看角落里的数。", en: "Guess first. Don't look at the number in the corner." },
-      shuffle([
-        { label: Math.round(mid.elev) + " 米", labelEn: Math.round(mid.elev) + " m", ok: true },
-        { label: Math.round(peak.elevM) + " 米", labelEn: Math.round(peak.elevM) + " m" },
-        { label: Math.round(mid.elev * 0.5) + " 米", labelEn: Math.round(mid.elev * 0.5) + " m" },
-      ]), (c) => {
+      shuffle(hikeMidHeightChoices(mid, hike)), (c) => {
       store.recordAnswer("hike", !!c.ok);
       markAnswer(box, c, !!c.ok);
       const line = "走到一半，高度大约 " + Math.round(mid.elev) + " 米，外面大约 " + formatTemp(mid.temp) + "。";
@@ -569,7 +597,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
           body: line + "还可以继续走到山顶。",
           tone: c.ok ? "ok" : "no",
         });
-      }, 900);
+      }, 1400);
     });
     s.append(box);
     talk({ zh: "走到一半，现在大约有多高？先猜。", en: "About how high are we at the halfway point? Guess first." });

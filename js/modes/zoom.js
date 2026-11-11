@@ -3,7 +3,7 @@ import { talk, sfx } from "../audio.js";
 import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer, dismissReveal, isRevealOpen } from "../ui.js";
 import { DEFAULT_PROFILE } from "../data.js";
 import { log10, pow10, clamp, formatNumber } from "../geo.js";
-import { drawGlobe, drawMoon, drawSun, drawMountainPair } from "../art.js";
+import { drawGlobe, drawMoon, drawSun, drawMountainPair, drawEiffelTower, drawDuomoCathedral, drawBundSkyline, drawTableMountain } from "../art.js";
 import { renderFlight } from "./flight.js";
 import { renderHike } from "./hike.js";
 import { renderRace } from "./race.js";
@@ -22,12 +22,50 @@ function mountainVisited(id) {
 /** Log10 units per second while auto-cruising. ~11–12 seconds per decade, plus dwell. */
 export const ZOOM_CRUISE_RATE = 0.085;
 
-/** Familiar nearby stops may hop. Endpoints of the line must be walked. */
+/** Familiar waystation chips and the two ends snap to the stop and stay.
+ *  Auto-walk from 从头走 still walks the spine from Planck. */
 export function zoomJumpStyle(id, { fromStart = false } = {}) {
   if (fromStart) return "start-at";
-  if (id === "universe" || id === "planck") return "cruise";
+  if (id === "universe" || id === "planck") return "hop";
   if (id === "me" || id === "ant" || id === "fuji" || id === "oriental-pearl" || id === "tokyo") return "hop";
   return "cruise";
+}
+
+/** Pure patch for a waystation / 从头走 jump. Hop snaps logS and target
+ *  onto the stop and clears cruiseGoal so auto-walk cannot slide past. */
+export function zoomJumpApply(stop, { logS, minL, maxL, fromStart = false, universeLog = null } = {}) {
+  if (!stop || !Number.isFinite(Number(stop.metres)) || Number(stop.metres) <= 0) return null;
+  const destLog = clamp(Math.log10(Number(stop.metres)), minL, maxL);
+  const here = Number.isFinite(Number(logS)) ? Number(logS) : destLog;
+  const style = zoomJumpStyle(stop.id, { fromStart });
+  if (style === "start-at") {
+    let goal = null;
+    if (stop.id === "planck") {
+      const uni = Number.isFinite(Number(universeLog)) ? Number(universeLog) : maxL;
+      goal = clamp(uni, minL, maxL);
+    }
+    return { style, logS: destLog, target: destLog, cruiseGoal: goal, cruiseDir: 1, auto: true, lastDwellId: stop.id };
+  }
+  if (style === "hop") {
+    return {
+      style,
+      logS: destLog,
+      target: destLog,
+      cruiseGoal: null,
+      cruiseDir: destLog >= here ? 1 : -1,
+      auto: false,
+      lastDwellId: stop.id,
+    };
+  }
+  return {
+    style: "cruise",
+    logS: here,
+    target: here,
+    cruiseGoal: destLog,
+    cruiseDir: destLog >= here ? 1 : -1,
+    auto: true,
+    lastDwellId: null,
+  };
 }
 
 /** Seconds to pause at a named stop. A targeted cruise to 宇宙 / 普朗克 only name-drops. */
@@ -93,8 +131,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   );
   s.append(readout);
   const stepper = el("div", { class: "zoom-stepper" },
-    el("button", { class: "zoom-btn in", "aria-label": "缩小 / Zoom in" }, UI.shrink),
-    el("button", { class: "zoom-btn out", "aria-label": "放大 / Zoom out" }, UI.grow),
+    el("button", { class: "zoom-btn in", "aria-label": "缩小 / Zoom out" }, UI.shrink),
+    el("button", { class: "zoom-btn out", "aria-label": "放大 / Zoom in" }, UI.grow),
   );
   s.append(stepper);
 
@@ -147,40 +185,33 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function jumpTo(id, speak, opts = {}) {
     const stop = stops.find((l) => l.id === id);
     if (!stop) return;
-    const destLog = clamp(log10(stop.metres), minL, maxL);
-    const style = zoomJumpStyle(id, opts);
+    const uni = stops.find((l) => l.id === "universe");
+    const universeLog = uni ? clamp(log10(uni.metres), minL, maxL) : maxL;
+    const patch = zoomJumpApply(stop, { logS, minL, maxL, fromStart: !!opts.fromStart, universeLog });
+    if (!patch) return;
+    const style = patch.style;
     visited.add(id);
     if (mountainVisited(id)) visited.add("mountain");
-    auto = true;
+    logS = patch.logS;
+    target = patch.target;
+    cruiseGoal = patch.cruiseGoal;
+    cruiseDir = patch.cruiseDir;
+    auto = patch.auto;
     holdPause = false;
     releasedLingerId = "";
+    if (patch.lastDwellId) lastDwellId = patch.lastDwellId;
+    asked = false;
+    s.querySelectorAll(".prompt").forEach((n) => n.remove());
     sfx.tick();
-    if (style === "start-at" || style === "hop") {
-      target = destLog;
-      if (style === "start-at") logS = destLog;
-      lastDwellId = id;
-      asked = false;
-      s.querySelectorAll(".prompt").forEach((n) => n.remove());
-      // 从头走 starts at Planck, then walks the whole spine out to the universe.
-      if (style === "start-at" && id === "planck") {
-        const uni = stops.find((l) => l.id === "universe");
-        cruiseGoal = uni ? clamp(log10(uni.metres), minL, maxL) : maxL;
-        cruiseDir = 1;
-        dwellLeft = zoomDwellForStop(stop, { cruiseGoal });
-        if (speak) talk("从最小的普朗克长度出发，一路走到宇宙。");
-      } else {
-        cruiseGoal = null;
-        dwellLeft = stop.familiar ? 7 : 4;
-        showLinger(stop);
-        if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
-      }
+    if (style === "start-at" && id === "planck") {
+      dwellLeft = zoomDwellForStop(stop, { cruiseGoal });
+      if (speak) talk("从最小的普朗克长度出发，一路走到宇宙。");
+    } else if (style === "hop") {
+      dwellLeft = stop.familiar ? 7 : 4;
+      showLinger(stop);
+      if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
     } else {
-      // Walk the spine. Tapping 宇宙 must not teleport past the decades in between.
-      cruiseDir = destLog >= logS ? 1 : -1;
-      cruiseGoal = destLog;
       dwellLeft = 0;
-      asked = false;
-      s.querySelectorAll(".prompt").forEach((n) => n.remove());
       if (speak) talk("我们一站一站走到" + stop.name + "，途中会经过很多站，不会一下子跳过去。");
     }
     syncPauseLabel();
@@ -531,7 +562,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     talk("去巴黎比去东京，差几个 10 倍？");
   }
 
-  talk("从你的身高开始，尺度会自己一站一站往外走。想从最小走完全程，就点从头走。点宇宙也会一路走过去，不会跳到头。", "Starting from your height, the scale will walk outward stop by stop. To walk the whole line from the smallest, tap start from the beginning. Tapping the universe also walks there, and will not jump to the end.");
+  talk("从你的身高开始，尺度会自己一站一站往外走。想从最小走完全程，就点从头走。想直接去外滩、富士山或宇宙，就点上面的站，会停在那儿。", "Starting from your height, the scale will walk outward stop by stop. To walk the whole line from the smallest, tap start from the beginning. Tap a familiar stop such as the Bund, Fuji, or the universe, and it will stay there.");
   s._cleanup = () => { persistZoom(); running = false; cancelAnimationFrame(raf); unPinch(); };
   app.replaceChildren(s);
   store.markModePlayed("zoom");
@@ -737,6 +768,22 @@ export function zoomTrailBox(w, h, { landscape } = {}) {
   // CSS: left 16px, max-width calc(100% - 148px)
   const maxRight = 16 + (w - 148);
   return { left: 16, right: Math.min(maxRight, step.left - 16), top: h - bottom - height, bottom: h - bottom };
+}
+
+/** Waystation chips dock above the tick scale, left of 缩小 / 放大,
+ *  so they cannot cover the bilingual title + blurb at the top. */
+export function zoomWaysBox(w, h, { landscape, hasPrompt } = {}) {
+  const land = landscape ?? (w > h);
+  const step = zoomStepperBox(w, h, { landscape: land });
+  const axis = zoomAxisLayout(w, h, { hasPrompt: !!hasPrompt, landscape: land });
+  const height = 96;
+  const bottom = Math.min(axis.axisY - 10, h - (land ? ZOOM_GUIDE_LANDSCAPE_BOTTOM : ZOOM_GUIDE_PORTRAIT_BOTTOM));
+  return {
+    left: 16,
+    right: Math.min(w - 16, step.left - 12),
+    top: bottom - height,
+    bottom,
+  };
 }
 
 /** Guide (no quiz) chrome vs the scale circle. Used so the waypoint bar and zoom keys stay clear. */
@@ -977,8 +1024,7 @@ function drawHero(ctx, cx, cy, layer, close, opts = {}) {
     ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
   } else if (id === "mountain") {
     drawMountainPair(ctx, 0, 30, 110, { snow: true, color: "#2a6a55" });
-  } else if (id === "city" || id === "tokyo" || id === "paris") {
-    // simple skyline so the layer is a place, not only an emoji
+  } else if (id === "city" || id === "tokyo") {
     ctx.fillStyle = "#1a3a50";
     const hs = id === "city" ? [40, 70, 50, 90, 60, 45] : [30, 50, 40, 80, 55, 35];
     hs.forEach((hh, i) => {
@@ -987,6 +1033,14 @@ function drawHero(ctx, cx, cy, layer, close, opts = {}) {
     ctx.font = "64px -apple-system";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(id === "city" ? "🏙️" : "✈️", 0, -20);
+  } else if (id === "paris" || id === "eiffel") {
+    drawEiffelTower(ctx, 0, 48, 150);
+  } else if (id === "duomo") {
+    drawDuomoCathedral(ctx, 0, 52, 180, 130);
+  } else if (id === "oriental-pearl" || id === "jinmao" || id === "swfc" || id === "shanghai-tower") {
+    drawBundSkyline(ctx, 0, 52, 220, 140, { highlight: id });
+  } else if (id === "schlern" || id === "dolomites" || id === "chance-climb") {
+    drawTableMountain(ctx, 0, 48, 200, 120);
   } else if (id === "earth") {
     drawGlobe(ctx, 0, 0, 88, { lonC: 125, latC: 28 });
   } else if (id === "moon") {

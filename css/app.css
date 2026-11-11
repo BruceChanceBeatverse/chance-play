@@ -358,14 +358,14 @@ button, input, textarea, select { font-family: inherit; }
 }
 .zoom-readout {
   position: absolute; left: 50%; top: 92px; transform: translateX(-50%);
-  z-index: 5; text-align: center;
+  z-index: 8; text-align: center;
   background: var(--panel); border-radius: 24px; padding: 14px 28px;
   box-shadow: var(--shadow); min-width: 280px;
-  max-width: min(640px, calc(100% - 200px));
+  max-width: min(720px, calc(100% - 200px));
 }
 .zoom-readout .pow { font-size: 18px; color: var(--cyan); }
 .zoom-readout .name { font-size: 32px; font-weight: 800; }
-.zoom-readout .blurb { color: var(--muted); font-size: 16px; max-width: 520px; }
+.zoom-readout .blurb { color: var(--muted); font-size: 16px; max-width: 36em; }
 
 .lift-btns { display: flex; gap: 16px; margin: 0 auto 200px; position: relative; z-index: 12; }
 .lift-btns button {
@@ -986,9 +986,9 @@ button, input, textarea, select { font-family: inherit; }
 .lock-explain .choice { margin-top: 16px; }
 
 /* Flippable world cards.
-   3D perspective is used only while the card is turning. Once the flip
-   finishes, the visible face is a flat, square, readable rectangle — never
-   left in a mid-flip trapezoid. */
+   A 2D scaleX flip — no preserve-3d, no perspective, no rotateY.
+   3D CSS plus a live canvas was crashing the renderer (Aw, Snap! / error 9)
+   when the Dolomites (and other) world cards were turned over. */
 .card-drop.flippable {
   position: relative;
   perspective: none;
@@ -999,29 +999,21 @@ button, input, textarea, select { font-family: inherit; }
   padding: 0;
   overflow: hidden;
 }
-.card-drop.flippable.is-flipping {
-  perspective: 900px;
-  overflow: visible;
-}
 .card-inner {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  transition: transform 0.45s ease;
-  transform: rotateY(0deg);
-}
-.card-drop.flipped.is-flipping .card-inner,
-.card-drop.flipped:not(.is-settled) .card-inner {
-  transform: rotateY(180deg);
-}
-.card-drop.is-settled .card-inner {
   transform: none;
   transform-style: flat;
   -webkit-transform-style: flat;
   transition: none;
+}
+.card-drop.is-flipping .card-inner {
+  transition: transform 0.2s ease;
+}
+.card-drop.is-flipping.is-flip-out .card-inner {
+  transform: scaleX(0);
 }
 .card-face {
   position: absolute;
@@ -1029,7 +1021,7 @@ button, input, textarea, select { font-family: inherit; }
   border-radius: 28px;
   background: linear-gradient(180deg, #1b3a4e, #0d2233);
   border: 2px solid var(--gold);
-  box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1037,31 +1029,20 @@ button, input, textarea, select { font-family: inherit; }
   gap: 12px;
   padding: 28px;
   text-align: center;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform: rotateY(0deg);
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  transform: none;
 }
 .card-face.card-back {
-  transform: rotateY(180deg);
+  transform: none;
   background: linear-gradient(180deg, #f4efe4 0%, #e4c98a 100%);
   border-color: #5ce1e6;
   color: #1a1208;
 }
-/* Settled back: drop the 3D rotate so the cream face sits square. */
-.card-drop.flipped.is-settled .card-face.card-back {
-  transform: none;
-  backface-visibility: visible;
-  -webkit-backface-visibility: visible;
-}
-.card-drop.flipped.is-settled .card-face.card-front {
-  visibility: hidden;
-  pointer-events: none;
-}
-.card-drop:not(.flipped).is-settled .card-face.card-back {
-  visibility: hidden;
-  pointer-events: none;
-  transform: none;
-}
+.card-drop:not(.flipped) .card-face.card-front { visibility: visible; }
+.card-drop:not(.flipped) .card-face.card-back { visibility: hidden; pointer-events: none; }
+.card-drop.flipped .card-face.card-front { visibility: hidden; pointer-events: none; }
+.card-drop.flipped .card-face.card-back { visibility: visible; }
 .card-face.card-back .k {
   color: #8a5a10;
   letter-spacing: 0.28em;
@@ -1152,12 +1133,14 @@ button, input, textarea, select { font-family: inherit; }
 .zoom-ways {
   position: absolute;
   left: 16px;
-  right: 180px;
-  top: 248px;
+  right: 160px;
+  top: auto;
+  bottom: 52px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+  align-content: flex-end;
   z-index: 7;
   pointer-events: none;
 }
@@ -1171,6 +1154,9 @@ button, input, textarea, select { font-family: inherit; }
   background: rgba(11,21,32,0.82);
   color: var(--cream);
   cursor: pointer;
+  white-space: nowrap;
+  word-break: keep-all;
+  line-break: strict;
 }
 .zoom-ways button.here { outline: 2px solid var(--gold); color: var(--gold); }
 .zoom-cruise {
@@ -1211,7 +1197,10 @@ button, input, textarea, select { font-family: inherit; }
 .summit-banner small { display: block; font-size: 18px; color: var(--cream); font-weight: 600; margin-top: 6px; }
 
 @media (orientation: landscape) {
-  .zoom-ways { right: 180px; top: 248px; }
+  .zoom-ways { right: 168px; top: auto; bottom: 52px; }
+}
+@media (orientation: portrait) {
+  .zoom-ways { right: 148px; top: auto; bottom: 52px; }
 }
 
 /* Mode-entry chips stay above a world-card overlay (even when the card is in .screen). */
@@ -1231,7 +1220,13 @@ button, input, textarea, select { font-family: inherit; }
   gap: 0.1em;
   line-height: 1.15;
 }
-.bi .zh { font-size: inherit; font-weight: inherit; }
+.bi .zh, .zh {
+  font-size: inherit;
+  font-weight: inherit;
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: normal;
+}
 .bi .en {
   font-size: 0.68em;
   font-weight: 650;

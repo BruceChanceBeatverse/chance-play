@@ -220,7 +220,7 @@ export const NAMED_SCALE_STOPS = [
     shown: "大约 236 米",
     blurb: "飞机按假设的 850 公里/小时，1 秒大约飞 236 米。",
     correlate: "比上海附近那座小山、比埃菲尔铁塔都要一下子更远。去东京的飞机，一眨眼就飞过一座小山那么远。",
-    correlateEn: "Farther in one second than Sheshan or the Eiffel Tower is tall. The plane to Tokyo covers a small-hill height in a blink.",
+    correlateEn: "Farther in one second than a small nearby hill or the Eiffel Tower is tall. The plane to Tokyo covers a small-hill height in a blink.",
     assumption: true, lingerMode: "race", emoji: "✈️",
   },
   {
@@ -228,7 +228,7 @@ export const NAMED_SCALE_STOPS = [
     shown: "1 公里",
     blurb: "1000 米就是 1 公里。走大概十几分钟（按走路来想）。",
     correlate: "你一次能爬大约 900 米，已经接近 1 公里。上海附近那座小山只有大约 99 米，只用来比一比。",
-    correlateEn: "The 900 m you can climb in one go is already close to 1 km. Sheshan is only about 99 m, a small hill for contrast.",
+    correlateEn: "The 900 m you can climb in one go is already close to 1 km. A small hill near Shanghai is only about 99 m; it is just there for size.",
     emoji: "📏",
   },
 

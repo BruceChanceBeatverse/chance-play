@@ -234,41 +234,41 @@ export function showCard(template, onDone) {
   talk("一张世界卡。" + (template.title || "") + "，" + (template.value || "") + "。点卡片可以翻一面。", "A world card. " + (template.titleEn || template.title || "") + ", " + (template.valueEn || template.value || "") + ". Tap the card to flip it.");
 }
 
-/** Settled class list so a flipped card lands square, not in mid-flip perspective. */
+/** Settled class list so a flipped card lands square, not in mid-flip motion. */
 export function cardFlipSettledClasses({ flipped = false } = {}) {
   return "card-drop flippable" + (flipped ? " flipped" : "") + " is-settled";
 }
+
+/** World-card flips are a 2D scaleX swap. 3D perspective + canvas crashed Chrome. */
+export const CARD_FLIP_USES_3D = false;
+export const CARD_FLIP_HALF_MS = 200;
 
 export function bindCardFlip(card) {
   if (!card || card._flipBound) return card;
   card._flipBound = true;
   card.classList.add("flippable");
-  // Start settled so the first face is a flat rectangle, not a 3D sliver.
   card.classList.add("is-settled");
   let flipTimer = 0;
-  const settle = (ev) => {
-    const inner = card.querySelector(".card-inner");
-    if (ev && ev.target && inner && ev.target !== inner) return;
-    if (ev && ev.propertyName && ev.propertyName !== "transform") return;
-    if (flipTimer) { clearTimeout(flipTimer); flipTimer = 0; }
-    if (inner) inner.removeEventListener("transitionend", settle);
-    card.classList.remove("is-flipping");
+  const clearTimer = () => { if (flipTimer) { clearTimeout(flipTimer); flipTimer = 0; } };
+  const land = () => {
+    clearTimer();
+    card.classList.remove("is-flipping", "is-flip-out");
     card.classList.add("is-settled");
   };
   card.addEventListener("click", (e) => {
     if (e.target.closest && e.target.closest("button")) return;
     e.stopPropagation();
-    const inner = card.querySelector(".card-inner");
-    if (flipTimer) { clearTimeout(flipTimer); flipTimer = 0; }
-    if (inner) inner.removeEventListener("transitionend", settle);
+    if (card.classList.contains("is-flipping")) return;
+    clearTimer();
     card.classList.remove("is-settled");
-    card.classList.add("is-flipping");
-    void card.offsetWidth;
-    card.classList.toggle("flipped");
+    card.classList.add("is-flipping", "is-flip-out");
     sfx.tap();
-    if (inner) inner.addEventListener("transitionend", settle);
-    // If transitions are disabled or the event is missed, still land square.
-    flipTimer = setTimeout(() => settle(), 700);
+    const mid = () => {
+      card.classList.toggle("flipped");
+      card.classList.remove("is-flip-out");
+      flipTimer = setTimeout(land, CARD_FLIP_HALF_MS);
+    };
+    flipTimer = setTimeout(mid, CARD_FLIP_HALF_MS);
   });
   return card;
 }

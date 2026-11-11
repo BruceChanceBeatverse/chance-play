@@ -422,12 +422,24 @@ export function cardArtKind(id) {
   }
 }
 
+export const CARD_ART_MAX_PX = 2048;
+
+/** CSS size used to paint a card, capped so a mid-flip getBoundingClientRect
+ *  cannot allocate a huge canvas and crash the renderer. */
+export function cardArtCssSize(rect, { maxPx = CARD_ART_MAX_PX, fallbackW = 400, fallbackH = 180 } = {}) {
+  const rawW = rect && Number(rect.width) > 0 ? Number(rect.width) : fallbackW;
+  const rawH = rect && Number(rect.height) > 0 ? Number(rect.height) : fallbackH;
+  const max = Math.max(64, Number(maxPx) || CARD_ART_MAX_PX);
+  return { w: Math.min(max, Math.max(1, rawW)), h: Math.min(max, Math.max(1, rawH)) };
+}
+
 export function paintCardArt(canvas, template = {}) {
   if (!canvas) return;
   const dpr = Math.min((typeof window !== "undefined" && window.devicePixelRatio) || 1, 2);
-  const r = canvas.getBoundingClientRect();
-  const w = Math.max(1, r.width || Number(canvas.getAttribute("width")) || 400);
-  const h = Math.max(1, r.height || Number(canvas.getAttribute("height")) || 180);
+  const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 0, height: 0 };
+  const sized = cardArtCssSize(r, { fallbackW: Number(canvas.getAttribute("width")) || 400, fallbackH: Number(canvas.getAttribute("height")) || 180 });
+  const w = sized.w;
+  const h = sized.h;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext("2d");
@@ -817,60 +829,220 @@ export function uniqueTimeLabels(labels) {
 
 export { lerp, clamp };
 
-function paintSchlernThumb(ctx, w, h) {
-  // Distinctive flat table-top, not a sharp cone.
-  const baseY = h * 0.86, topY = h * 0.38, mid = w * 0.5;
+/** Recognizable Eiffel Tower: two legs, two platforms, a thin antenna. */
+export function drawEiffelTower(ctx, cx, baseY, height) {
+  const H = Math.max(28, height);
+  const topY = baseY - H;
+  ctx.save();
+  ctx.strokeStyle = "#e2b03a";
+  ctx.fillStyle = "#c9a227";
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  const baseW = H * 0.62;
+  const midY = baseY - H * 0.38;
+  const midW = H * 0.28;
+  const deckY = baseY - H * 0.68;
+  const deckW = H * 0.14;
+  const tipY = baseY - H * 0.9;
+  ctx.lineWidth = Math.max(2.5, H * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(cx - baseW / 2, baseY);
+  ctx.lineTo(cx - midW / 2, midY);
+  ctx.lineTo(cx - deckW / 2, deckY);
+  ctx.lineTo(cx, tipY);
+  ctx.lineTo(cx + deckW / 2, deckY);
+  ctx.lineTo(cx + midW / 2, midY);
+  ctx.lineTo(cx + baseW / 2, baseY);
+  ctx.stroke();
+  // Cross-bracing so it is not two bare lines.
+  ctx.lineWidth = Math.max(1.6, H * 0.025);
+  ctx.beginPath();
+  ctx.moveTo(cx - baseW * 0.42, baseY - H * 0.12);
+  ctx.lineTo(cx + midW * 0.2, midY + H * 0.06);
+  ctx.moveTo(cx + baseW * 0.42, baseY - H * 0.12);
+  ctx.lineTo(cx - midW * 0.2, midY + H * 0.06);
+  ctx.moveTo(cx - midW * 0.32, midY - H * 0.08);
+  ctx.lineTo(cx + deckW * 0.15, deckY + H * 0.06);
+  ctx.moveTo(cx + midW * 0.32, midY - H * 0.08);
+  ctx.lineTo(cx - deckW * 0.15, deckY + H * 0.06);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(3, H * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(cx - midW * 0.58, midY);
+  ctx.lineTo(cx + midW * 0.58, midY);
+  ctx.moveTo(cx - deckW * 0.7, deckY);
+  ctx.lineTo(cx + deckW * 0.7, deckY);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(2, H * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(cx, tipY);
+  ctx.lineTo(cx, topY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Milan Duomo: a wide Gothic mass with many spires, not a chapel and one cross. */
+export function drawDuomoCathedral(ctx, cx, baseY, width, height) {
+  const W = Math.max(48, width);
+  const H = Math.max(36, height);
+  const left = cx - W / 2;
+  ctx.save();
+  ctx.fillStyle = "#ddd6c6";
+  ctx.strokeStyle = "#c8c0ae";
+  // Nave
+  ctx.fillRect(left + W * 0.06, baseY - H * 0.42, W * 0.88, H * 0.42);
+  // Facade steps of pinnacles along the roofline.
+  const roofY = baseY - H * 0.42;
+  const spires = 9;
+  for (let i = 0; i < spires; i++) {
+    const u = i / (spires - 1);
+    const x = left + W * 0.1 + u * W * 0.8;
+    const isCenter = i === 4;
+    const isNear = i === 3 || i === 5;
+    const sh = isCenter ? H * 0.58 : isNear ? H * 0.36 : H * (0.18 + (i % 2) * 0.06);
+    ctx.fillStyle = isCenter ? "#efe8d8" : "#d8d2c4";
+    ctx.beginPath();
+    ctx.moveTo(x - W * 0.035, roofY);
+    ctx.lineTo(x, roofY - sh);
+    ctx.lineTo(x + W * 0.035, roofY);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Golden Madonnina on the tallest spire.
+  ctx.fillStyle = "#f5c84c";
+  ctx.beginPath();
+  ctx.arc(cx, roofY - H * 0.58, Math.max(2.4, W * 0.018), 0, Math.PI * 2);
+  ctx.fill();
+  // Door + windows so it reads as a cathedral front.
+  ctx.fillStyle = "#5a4a38";
+  ctx.fillRect(cx - W * 0.07, baseY - H * 0.28, W * 0.14, H * 0.28);
+  ctx.fillStyle = "rgba(90, 70, 40, 0.45)";
+  ctx.fillRect(cx - W * 0.28, baseY - H * 0.3, W * 0.1, H * 0.16);
+  ctx.fillRect(cx + W * 0.18, baseY - H * 0.3, W * 0.1, H * 0.16);
+  ctx.restore();
+}
+
+/** Lujiazui towers seen from the Bund: Pearl, Jin Mao, SWFC, Shanghai Tower. */
+export function drawBundSkyline(ctx, cx, baseY, width, height, { highlight = "" } = {}) {
+  const W = Math.max(80, width);
+  const H = Math.max(50, height);
+  const left = cx - W / 2;
+  ctx.save();
+  // River / Bund edge
+  ctx.fillStyle = "#143a5c";
+  ctx.fillRect(left, baseY - H * 0.08, W, H * 0.08);
+  ctx.fillStyle = "rgba(92,225,230,0.35)";
+  ctx.fillRect(left, baseY - H * 0.04, W, H * 0.04);
+
+  function dim(id, color) {
+    return highlight && highlight !== id ? "rgba(180,200,210,0.7)" : color;
+  }
+
+  // Jin Mao — stepped pagoda, left-of-center.
+  const jinX = left + W * 0.22;
+  ctx.fillStyle = dim("jinmao", "#e6c36a");
+  for (let i = 0; i < 5; i++) {
+    const ww = W * (0.16 - i * 0.018);
+    const yy = baseY - H * 0.12 - i * (H * 0.1);
+    const hh = H * 0.12;
+    ctx.fillRect(jinX - ww / 2, yy - hh, ww, hh);
+  }
+
+  // Oriental Pearl — two spheres on a stem. The most familiar silhouette.
+  const pearlX = left + W * 0.42;
+  ctx.fillStyle = dim("oriental-pearl", "#c9d4de");
+  ctx.fillRect(pearlX - W * 0.018, baseY - H * 0.72, W * 0.036, H * 0.72);
+  ctx.fillStyle = dim("oriental-pearl", "#ff8a6a");
+  ctx.beginPath(); ctx.arc(pearlX, baseY - H * 0.28, H * 0.11, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(pearlX, baseY - H * 0.55, H * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = dim("oriental-pearl", "#f4efe4");
+  ctx.beginPath(); ctx.arc(pearlX, baseY - H * 0.76, H * 0.03, 0, Math.PI * 2); ctx.fill();
+
+  // SWFC — bottle-opener / trapezoid with a hole near the top.
+  // evenodd path, never destination-out (that would punch the whole scene).
+  const swX = left + W * 0.62;
+  ctx.fillStyle = dim("swfc", "#8fd4e0");
+  ctx.beginPath();
+  ctx.moveTo(swX - W * 0.09, baseY);
+  ctx.lineTo(swX - W * 0.045, baseY - H * 0.78);
+  ctx.lineTo(swX + W * 0.045, baseY - H * 0.78);
+  ctx.lineTo(swX + W * 0.09, baseY);
+  ctx.closePath();
+  ctx.moveTo(swX - W * 0.028, baseY - H * 0.62);
+  ctx.lineTo(swX, baseY - H * 0.74);
+  ctx.lineTo(swX + W * 0.028, baseY - H * 0.62);
+  ctx.closePath();
+  ctx.fill("evenodd");
+
+  // Shanghai Tower — tallest, gentle twist.
+  const twX = left + W * 0.84;
+  ctx.fillStyle = dim("shanghai-tower", "#b9d8ff");
+  ctx.beginPath();
+  ctx.moveTo(twX - W * 0.06, baseY);
+  ctx.quadraticCurveTo(twX - W * 0.1, baseY - H * 0.5, twX - W * 0.03, baseY - H * 0.96);
+  ctx.lineTo(twX + W * 0.025, baseY - H * 0.96);
+  ctx.quadraticCurveTo(twX + W * 0.09, baseY - H * 0.5, twX + W * 0.055, baseY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Flat-top table / bench mountain (Schlern / Sciliar), not a sharp cone. */
+export function drawTableMountain(ctx, cx, baseY, width, height) {
+  const W = Math.max(60, width);
+  const H = Math.max(36, height);
+  const left = cx - W / 2;
+  const topY = baseY - H * 0.78;
+  const topL = left + W * 0.22;
+  const topR = left + W * 0.78;
+  ctx.save();
   ctx.fillStyle = "#3d6a4a";
   ctx.beginPath();
-  ctx.moveTo(w * 0.08, baseY);
-  ctx.lineTo(w * 0.28, topY + 16);
-  ctx.lineTo(w * 0.72, topY);
-  ctx.lineTo(w * 0.92, baseY);
+  ctx.moveTo(left + W * 0.02, baseY);
+  ctx.lineTo(topL, topY + H * 0.08);
+  ctx.lineTo(topL, topY);
+  ctx.lineTo(topR, topY);
+  ctx.lineTo(topR, topY + H * 0.06);
+  ctx.lineTo(left + W * 0.98, baseY);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = "#c9b48a";
-  ctx.fillRect(w * 0.28, topY, w * 0.44, 14);
+  ctx.fillRect(topL, topY, topR - topL, Math.max(6, H * 0.08));
+  // A lower shoulder so it feels like a massif, still flat on top.
+  ctx.fillStyle = "#2f553c";
+  ctx.beginPath();
+  ctx.moveTo(left + W * 0.08, baseY);
+  ctx.lineTo(left + W * 0.3, baseY - H * 0.32);
+  ctx.lineTo(left + W * 0.48, baseY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function paintSchlernThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#6aa0c8", mid: "#c5d8c4", bot: "#2a4a3a" });
+  drawTableMountain(ctx, w * 0.52, h * 0.92, w * 0.9, h * 0.72);
 }
 function paintDolomitesThumb(ctx, w, h) {
-  ctx.fillStyle = "#5a7a62";
-  ctx.beginPath(); ctx.moveTo(0, h * 0.86); ctx.lineTo(w * 0.25, h * 0.5); ctx.lineTo(w * 0.45, h * 0.62); ctx.lineTo(w * 0.7, h * 0.36); ctx.lineTo(w, h * 0.78); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.fill();
-  ctx.fillStyle = "#e8eef4";
-  ctx.beginPath(); ctx.moveTo(w * 0.58, h * 0.44); ctx.lineTo(w * 0.7, h * 0.36); ctx.lineTo(w * 0.8, h * 0.5); ctx.fill();
+  fillSky(ctx, w, h, { top: "#6aa0c8", mid: "#c5d8c4", bot: "#2a4a3a" });
+  drawTableMountain(ctx, w * 0.5, h * 0.92, w * 0.95, h * 0.7);
 }
 function paintEverestThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#6b9ad4", mid: "#d7e6f4", bot: "#2a4a40" });
   ctx.fillStyle = "#2a4a40";
   ctx.beginPath(); ctx.moveTo(w * 0.05, h * 0.9); ctx.lineTo(w * 0.5, h * 0.16); ctx.lineTo(w * 0.95, h * 0.9); ctx.fill();
   ctx.fillStyle = "#f4efe4";
   ctx.beginPath(); ctx.moveTo(w * 0.38, h * 0.36); ctx.lineTo(w * 0.5, h * 0.16); ctx.lineTo(w * 0.64, h * 0.4); ctx.fill();
 }
 function paintEiffelThumb(ctx, w, h) {
-  ctx.strokeStyle = "#c9a227";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(w * 0.28, h * 0.9); ctx.lineTo(w * 0.5, h * 0.12); ctx.lineTo(w * 0.72, h * 0.9);
-  ctx.moveTo(w * 0.36, h * 0.62); ctx.lineTo(w * 0.64, h * 0.62);
-  ctx.moveTo(w * 0.42, h * 0.4); ctx.lineTo(w * 0.58, h * 0.4);
-  ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.12); ctx.lineTo(w * 0.5, h * 0.04); ctx.stroke();
+  fillSky(ctx, w, h, { top: "#173a5c", mid: "#0c2740", bot: "#0a3a30" });
+  drawEiffelTower(ctx, w / 2, h * 0.92, h * 0.82);
 }
 function paintDuomoThumb(ctx, w, h) {
-  ctx.fillStyle = "#d8d2c4";
-  ctx.fillRect(w * 0.18, h * 0.55, w * 0.64, h * 0.35);
-  ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.14); ctx.lineTo(w * 0.62, h * 0.55); ctx.lineTo(w * 0.38, h * 0.55); ctx.fill();
-  ctx.fillStyle = "#f5c84c";
-  ctx.beginPath(); ctx.arc(w * 0.5, h * 0.16, 6, 0, Math.PI * 2); ctx.fill();
+  fillSky(ctx, w, h, { top: "#6aa0c8", mid: "#d7e6f4", bot: "#3a4a40" });
+  drawDuomoCathedral(ctx, w / 2, h * 0.92, w * 0.9, h * 0.8);
 }
 function paintBundThumb(ctx, w, h) {
-  const towers = [
-    [0.12, 0.42, "#ff7a59"], // pearl-ish
-    [0.34, 0.38, "#f5c84c"],
-    [0.54, 0.32, "#5ce1e6"],
-    [0.74, 0.22, "#9ad4ff"],
-  ];
-  for (const [x, top, c] of towers) {
-    ctx.fillStyle = c;
-    ctx.fillRect(w * x, h * top, w * 0.14, h * (0.88 - top));
-  }
-  ctx.fillStyle = "#1a3d5c";
-  ctx.fillRect(0, h * 0.88, w, h * 0.12);
+  fillSky(ctx, w, h, { top: "#143a5c", mid: "#0c2740", bot: "#071018" });
+  drawBundSkyline(ctx, w / 2, h * 0.92, w * 0.92, h * 0.8);
 }

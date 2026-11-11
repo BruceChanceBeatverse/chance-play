@@ -275,7 +275,11 @@ export const SAMPLE_HIKES = [
     color: "#c9a227",
     // Schematic 12 km walk with about 900 m of climbing — the kind of walk
     // he can do. Not a named GPS track, and not a 2,563 m Schlern summit.
-    points: makeHillProfile({ lengthKm: 12, peakM: 2200, peakAt: 0.68, startM: 1300, bumps: [[0.28, 1700, 0.08], [0.48, 1950, 0.07]] }),
+    // Peak sits at the end of the 12 km so the summit HUD matches the card.
+    // A wide visual table-top (Schlern-like), with the official "arrived"
+    // flag kept tight at the end so the walk is not finished early.
+    peakAlign: "end",
+    points: makeHillProfile({ lengthKm: 12, peakM: 2200, peakAt: 1, startM: 1300, bumps: [[0.28, 1700, 0.08], [0.55, 1950, 0.07]], plateauWidth: 0.18 }),
   },
   {
     id: "huangshan",
@@ -290,8 +294,8 @@ export const SAMPLE_HIKES = [
   },
   {
     id: "sheshan",
-    name: "佘山",
-    nameEn: "Sheshan",
+    name: "附近一座小山",
+    nameEn: "A small nearby hill",
     sample: true,
     child: false,
     officialSummit: true,
@@ -303,19 +307,22 @@ export const SAMPLE_HIKES = [
   },
 ];
 
-function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [] }) {
+function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [], plateauWidth = 0.02 } = {}) {
   const n = 80;
   const pts = [];
+  const visualPlateau = Math.max(1.6 / n, Number(plateauWidth) || 0.02);
+  const summitPlateau = Math.max(1.6 / n, 0.02);
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const dist = t * lengthKm;
     // Smooth rise to the peak then a gentler descent (or continue to peak if near end).
     let elev;
     if (t <= peakAt) {
-      const u = t / peakAt;
+      const u = peakAt <= 0 ? 1 : t / peakAt;
       elev = startM + (peakM - startM) * (u * u * (3 - 2 * u));
     } else {
-      const u = (t - peakAt) / (1 - peakAt);
+      const span = Math.max(1e-6, 1 - peakAt);
+      const u = (t - peakAt) / span;
       const end = Math.max(startM, peakM * 0.55);
       elev = peakM + (end - peakM) * (u * u * (3 - 2 * u));
     }
@@ -323,12 +330,14 @@ function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [] }) {
       const g = Math.exp(-((t - c) * (t - c)) / (2 * w * w));
       elev = Math.max(elev, startM + (h - startM) * g);
     }
-    // A short official summit ridge, so arriving at the peak is not instantly downhill.
-    const plateau = Math.max(1.6 / n, 0.02);
-    const onPlateau = Math.abs(t - peakAt) <= plateau;
-    // Tiny path roughness, but never let it move the official peak.
-    if (!onPlateau) elev += Math.sin(t * 37.7) * Math.min(3, peakM * 0.0006);
-    if (onPlateau) elev = peakM;
+    // A visual table-top can be wide; the summit flag stays tight so
+    // celebration happens at the end of a lived-ability walk.
+    const onVisual = Math.abs(t - peakAt) <= visualPlateau;
+    const onPlateau = Math.abs(t - peakAt) <= summitPlateau;
+    if (onVisual) elev = peakM;
+    // Tiny path roughness, but never let it move the official / table-top peak.
+    if (!onVisual) elev += Math.sin(t * 37.7) * Math.min(3, peakM * 0.0006);
+    if (onVisual) elev = peakM;
     pts.push({ distKm: dist, elevM: Math.max(0, elev), plateau: onPlateau });
   }
   if (pts.length) {
@@ -342,7 +351,7 @@ function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [] }) {
     pts[pi].elevM = peakM;
     pts[pi].plateau = true;
     for (let i = 0; i < pts.length; i++) {
-      if (pts[i].plateau) pts[i].elevM = peakM;
+      if (pts[i].plateau || Math.abs(pts[i].elevM - peakM) <= 0.05) pts[i].elevM = peakM;
       else if (i !== pi) pts[i].elevM = Math.min(pts[i].elevM, peakM - 0.51);
     }
   }
@@ -468,7 +477,7 @@ export const CARD_TEMPLATES = [
     backTitle: "慢慢骑", backTitleEn: "A gentle ride", back: "这是用来比较的假设速度。同样 2 公里，骑车大约要几分钟。", backEn: "This is an assumed speed for comparing. Over the same 2 km, a bike takes a few minutes." },
   { id: "c-plane", title: "飞机巡航", titleEn: "Plane cruise", value: "大约 850 公里/小时（假设）", valueEn: "About 850 km/h (assumed)", mode: "race",
     backTitle: "很快", backTitleEn: "Very fast", back: "这是用来比较的假设巡航速度。同样 2 公里，飞机只要几秒钟。", backEn: "This is an assumed cruise speed for comparing. Over the same 2 km, a plane takes only a few seconds." },
-  { id: "c-sheshan", title: "佘山", titleEn: "Sheshan", value: "大约 99 米高", valueEn: "About 99 m", mode: "hike",
+  { id: "c-sheshan", title: "附近一座小山", titleEn: "A small nearby hill", value: "大约 99 米高", valueEn: "About 99 m", mode: "hike",
     backTitle: "用来比一比的小山", backTitleEn: "A small hill for contrast",
     back: "上海附近一座小山，官方大约 99 米。用来和铁塔、外滩的楼、富士山比一比。不是你爬过的山。",
     backEn: "A small hill near Shanghai, officially about 99 m. Use it to compare with the Eiffel Tower, the Bund towers, and Fuji. It is not a mountain you have climbed." },
@@ -520,8 +529,8 @@ export const CARD_TEMPLATES = [
     backEn: "The highest mountain on Earth. The official height is 8,848.86 m, commonly 8,849 m. It is a little more than twice as high as Fuji. You know it, but you have not climbed it." },
   { id: "c-eiffel", title: "埃菲尔铁塔", titleEn: "The Eiffel Tower", value: "330 米", valueEn: "330 m", mode: "compare",
     backTitle: "你在巴黎看见过", backTitleEn: "You have seen it in Paris",
-    back: "你去过巴黎，也看见过这座塔。带天线的官方高度是 330 米。比佘山高很多，比外滩的楼矮一点。",
-    backEn: "You have been to Paris and seen this tower. The official height with its antenna is 330 m. Much taller than Sheshan, a little shorter than the Bund towers." },
+    back: "你去过巴黎，也看见过这座塔。带天线的官方高度是 330 米。比米兰大教堂高大约 3 倍，比外滩的楼矮一点。",
+    backEn: "You have been to Paris and seen this tower. The official height with its antenna is 330 m. About 3 times as high as the Milan Duomo, a little shorter than the Bund towers." },
   { id: "c-duomo", title: "米兰大教堂", titleEn: "Milan Cathedral", value: "108.5 米", valueEn: "108.5 m", mode: "compare",
     backTitle: "你认识的金色圣母", backTitleEn: "The golden Madonnina you know",
     back: "今年你在米兰认识了大教堂。到金色圣母像（Madonnina）的官方高度是 108.5 米。",

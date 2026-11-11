@@ -8,11 +8,19 @@ import {
   greatCirclePoints, flightAltitudeKm, isaTempC, formatKm, formatHours, formatTemp,
   lonLatToXY, clamp, lerp, smoothstep, interpolateGreatCircle,
 } from "../geo.js";
-import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup } from "../art.js";
+import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup, drawEiffelTower } from "../art.js";
 import { shouldShowFlightPicker, resolveTrip, renderTripPicker, switchRouteButton, flightAssumptionCopy } from "../pickers.js";
 import { clampSeekToBeats, bi, UI } from "../i18n.js";
 
 const CRUISE_KMH = 850; // ASSUMPTION: typical jet cruise, same as the plane racer.
+
+/** Paris arrivals (and the last stretch toward CDG) should show the Eiffel Tower. */
+export function flightShowsEiffel(to) {
+  if (!to) return false;
+  const city = String(to.city || to.name || "");
+  const code = String(to.icao || to.code || to.id || "").toUpperCase();
+  return city.includes("巴黎") || /paris/i.test(String(to.cityEn || to.nameEn || "")) || code === "LFPG" || code === "CDG";
+}
 
 export function flightQuizBeats({ askArmed, asked, arrived }) {
   const beats = [];
@@ -170,7 +178,14 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     drawRoute(ctx, xy, progress);
     const start = xy[0], end = xy[xy.length - 1];
     if (start && Number.isFinite(start.x) && Number.isFinite(start.y)) drawCityGlow(ctx, start.x, start.y, from.city);
-    if (end && Number.isFinite(end.x) && Number.isFinite(end.y)) drawCityGlow(ctx, end.x, end.y, to.city);
+    if (end && Number.isFinite(end.x) && Number.isFinite(end.y)) {
+      drawCityGlow(ctx, end.x, end.y, to.city);
+      if (flightShowsEiffel(to)) {
+        const arrivedHere = arrived || progress >= 0.995;
+        const hgt = arrivedHere ? 90 : 52;
+        drawEiffelTower(ctx, end.x, end.y - 8, hgt);
+      }
+    }
 
     const p = interpolateGreatCircle(from.lat, from.lon, to.lat, to.lon, progress);
     const here = project(p.lon, p.lat, w, h);
