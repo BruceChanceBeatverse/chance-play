@@ -242,12 +242,14 @@ export function hikeRevealOpts(hike, extra = {}) {
 export function slopeRateQuestion() {
   return {
     title: "坡度快是什么意思？",
+    titleEn: "What does a steep slope mean?",
     body: "看一看：走同样远的路，是不是升得更多。",
+    bodyEn: "Look: for the same distance walked, did we climb more?",
     talk: "坡度快是什么意思？走同样远，升得更高，山就更陡。",
     choices: [
-      { id: "steep", label: "走同样远，升得更高，山就更陡", ok: true },
-      { id: "fast", label: "走得越快，坡度就越快" },
-      { id: "cold", label: "外面越冷，坡度就越快" },
+      { id: "steep", label: "走同样远，升得更高，山就更陡", labelEn: "For the same distance, climbing more means a steeper hill", ok: true },
+      { id: "fast", label: "走得越快，坡度就越快", labelEn: "The faster you walk, the steeper the slope" },
+      { id: "cold", label: "外面越冷，坡度就越快", labelEn: "The colder it is, the steeper the slope" },
     ],
     okLine: "对。走同样远的路，升得越多，坡度就越快，山就越陡。",
     noLine: "坡度快不是走得快。是走同样远的路，升得更高，山就更陡。",
@@ -290,7 +292,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     title: { zh: hike.name, en: hike.nameEn || hike.name },
     sub: trailNote,
     onBack: goHome,
-    extra: switchRouteButton("换一座山", () => renderHike(app, { goHome, onDone, goZoom })),
+    extra: switchRouteButton({ zh: "换一座山", en: "Switch mountain" }, () => renderHike(app, { goHome, onDone, goZoom })),
   }));
   const board = hud([
     { label: "走了多远", labelEn: "How far", value: "0 公里", tone: "cyan" },
@@ -494,7 +496,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       tone,
       goHome,
       actions: [
-        { label: "继续走到山顶", kind: "ok", onClick: () => resumeTrail() },
+        { label: "继续走到山顶", labelEn: "Keep walking to the top", kind: "ok", onClick: () => resumeTrail() },
         { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
       ],
     });
@@ -508,9 +510,12 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     asked = true;
     quizKind = "peak";
     askedKinds.add("peak");
-    const box = promptBox("最高的地方在哪儿？", "把小人走到山顶。还没到的话，就再说一声。", [
-      { label: "我走到山顶了", id: "done", icon: "⛰️" },
-      { label: "还在走", id: "retry", icon: "🔄" },
+    const box = promptBox(
+      { zh: "最高的地方在哪儿？", en: "Where is the highest place?" },
+      { zh: "把小人走到山顶。还没到的话，就再说一声。", en: "Walk the little person to the top. If you are not there yet, say so." },
+      [
+      { label: "我走到山顶了", labelEn: "I reached the top", id: "done", icon: "⛰️" },
+      { label: "还在走", labelEn: "Still walking", id: "retry", icon: "🔄" },
     ], (c) => {
       if (c.id === "retry") {
         box.remove();
@@ -543,11 +548,14 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     askedKinds.add("mid");
     store.rememberAsked("hike:mid");
     const mid = at(0.5);
-    const box = promptBox("走到一半，大约有多高？", "先猜，不要看角落里的数。", shuffle([
-      { label: Math.round(mid.elev) + " 米", ok: true },
-      { label: Math.round(peak.elevM) + " 米" },
-      { label: Math.round(mid.elev * 0.5) + " 米" },
-    ]), (c) => {
+    const box = promptBox(
+      { zh: "走到一半，大约有多高？", en: "About how high are we at the halfway point?" },
+      { zh: "先猜，不要看角落里的数。", en: "Guess first. Don't look at the number in the corner." },
+      shuffle([
+        { label: Math.round(mid.elev) + " 米", labelEn: Math.round(mid.elev) + " m", ok: true },
+        { label: Math.round(peak.elevM) + " 米", labelEn: Math.round(peak.elevM) + " m" },
+        { label: Math.round(mid.elev * 0.5) + " 米", labelEn: Math.round(mid.elev * 0.5) + " m" },
+      ]), (c) => {
       store.recordAnswer("hike", !!c.ok);
       markAnswer(box, c, !!c.ok);
       const line = "走到一半，高度大约 " + Math.round(mid.elev) + " 米，外面大约 " + formatTemp(mid.temp) + "。";
@@ -564,7 +572,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
       }, 900);
     });
     s.append(box);
-    talk("走到一半，现在大约有多高？先猜。");
+    talk({ zh: "走到一半，现在大约有多高？先猜。", en: "About how high are we at the halfway point? Guess first." });
   }
 
   function askTemp() {
@@ -572,9 +580,12 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     quizKind = "temp";
     askedKinds.add("temp");
     store.rememberAsked("hike:temp");
-    const box = promptBox("爬得越高，气温会怎样？", "先想一想，不要看角落里的温度。", [
-      { label: "更冷", ok: true },
-      { label: "更暖" },
+    const box = promptBox(
+      { zh: "爬得越高，气温会怎样？", en: "As we climb higher, what happens to the temperature?" },
+      { zh: "先想一想，不要看角落里的温度。", en: "Think first. Don't look at the temperature in the corner." },
+      [
+      { label: "更冷", labelEn: "It gets colder", ok: true },
+      { label: "更暖", labelEn: "It gets warmer" },
     ], (c) => {
       store.recordAnswer("hike", !!c.ok);
       markAnswer(box, c, !!c.ok);
@@ -601,9 +612,13 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     store.rememberAsked("hike:which:" + hike.id);
     const options = store.get().hikes.slice(0, 3).map((h) => ({
       label: h.name.replace("（示例）", ""),
+      labelEn: (h.nameEn || "").replace(" (sample)", "") || undefined,
       ok: h.id === hike.id,
     }));
-    const box = promptBox("只看这座山的形状，它是哪一座？", "看高度和长度。还没到山顶，答完还可以继续走。", options, (c) => {
+    const box = promptBox(
+      { zh: "只看这座山的形状，它是哪一座？", en: "Just from this mountain's shape, which one is it?" },
+      { zh: "看高度和长度。还没到山顶，答完还可以继续走。", en: "Look at the height and the length. You can keep walking after you answer." },
+      options, (c) => {
       store.recordAnswer("hike", !!c.ok);
       box.remove();
       const shortName = hike.name.replace("（示例）", "");
@@ -630,7 +645,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     askedKinds.add("slope");
     store.rememberAsked("hike:slope");
     const q = slopeRateQuestion();
-    const box = promptBox(q.title, q.body, q.choices, (c) => {
+    const box = promptBox({ zh: q.title, en: q.titleEn }, { zh: q.body, en: q.bodyEn }, q.choices, (c) => {
       store.recordAnswer("hike", !!c.ok);
       store.completeTodayTask("t30");
       if (taskId) store.completeTodayTask(taskId);

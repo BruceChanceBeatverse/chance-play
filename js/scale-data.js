@@ -15,6 +15,7 @@ import {
   SWFC_HEIGHT_M, SHANGHAI_TOWER_M, SCHLERN_PEZ_M, FUJI_HEIGHT_M,
   EVEREST_HEIGHT_M, CHANCE_HIKE_KM, CHANCE_HIKE_GAIN_M, SHESHAN_HEIGHT_M,
 } from "./data.js";
+import { englishForStop } from "./scale-en.js";
 
 /** CODATA / SI: Planck length ℓP = √(ħG/c³) ≈ 1.616×10⁻³⁵ m. */
 export const PLANCK_LENGTH_M = 1.616e-35;
@@ -194,11 +195,11 @@ export const NAMED_SCALE_STOPS = [
     waystation: true, familiar: true, emoji: "👣",
   },
   {
-    id: "sheshan", name: "佘山", nameEn: "Sheshan", metres: SHESHAN_HEIGHT_M, kind: "mountain",
+    id: "sheshan", name: "附近一座小山", nameEn: "A small nearby hill", metres: SHESHAN_HEIGHT_M, kind: "mountain",
     shown: "大约 99 米", shownEn: "About 99 m",
-    blurb: "上海附近一座小山，官方大约 99 米。只用来比一比，不是你爬过的山。",
-    blurbEn: "A small hill near Shanghai, officially about 99 m. Only for contrast, not a mountain you have climbed.",
-    correlate: "米兰大教堂已经比它高一点。外滩的楼、埃菲尔铁塔、富士山都比它高很多。",
+    blurb: "上海附近一座大约 99 米的小山。只用来比一比大小，不是你爬过的山。",
+    blurbEn: "A small hill near Shanghai, about 99 m. Only for comparing size, not a mountain you have climbed.",
+    correlate: "米兰大教堂已经比这座小山高一点。外滩的楼、埃菲尔铁塔、富士山都比它高很多。",
     correlateEn: "The Milan Duomo is already a little taller. The Bund towers, the Eiffel Tower, and Fuji are all much taller.",
     contrastOnly: true, emoji: "⛰️",
     source: "Sheshan West Peak commonly ~98.8–99 m",
@@ -208,8 +209,8 @@ export const NAMED_SCALE_STOPS = [
     shown: "108.5 米", shownEn: "108.5 m",
     blurb: "到金色圣母像（Madonnina）的官方高度是 108.5 米。今年你在米兰认识了它。",
     blurbEn: "The official height to the golden Madonnina is 108.5 m. You got to know it in Milan this year.",
-    correlate: "比佘山高一点点。你看见过的埃菲尔铁塔，大约是它的 3 倍高。",
-    correlateEn: "A little taller than Sheshan. The Eiffel Tower you have seen is about 3 times as high.",
+    correlate: "比上海附近那座小山高一点点。你看见过的埃菲尔铁塔，大约是它的 3 倍高。",
+    correlateEn: "A little taller than a small hill near Shanghai. The Eiffel Tower you have seen is about 3 times as high.",
     familiar: true, emoji: "⛪",
     source: "Veneranda Fabbrica / duomomilano.it: 108.5 m to the Madonnina",
   },
@@ -218,7 +219,7 @@ export const NAMED_SCALE_STOPS = [
     id: "plane-second", name: "飞机 1 秒（假设）", metres: 850 / 3.6, kind: "speed",
     shown: "大约 236 米",
     blurb: "飞机按假设的 850 公里/小时，1 秒大约飞 236 米。",
-    correlate: "比佘山、比埃菲尔铁塔都要一下子更远。去东京的飞机，一眨眼就飞过一座小山那么远。",
+    correlate: "比上海附近那座小山、比埃菲尔铁塔都要一下子更远。去东京的飞机，一眨眼就飞过一座小山那么远。",
     correlateEn: "Farther in one second than Sheshan or the Eiffel Tower is tall. The plane to Tokyo covers a small-hill height in a blink.",
     assumption: true, lingerMode: "race", emoji: "✈️",
   },
@@ -226,7 +227,7 @@ export const NAMED_SCALE_STOPS = [
     id: "kilometre", name: "1 公里", metres: 1000, kind: "everyday",
     shown: "1 公里",
     blurb: "1000 米就是 1 公里。走大概十几分钟（按走路来想）。",
-    correlate: "你一次能爬大约 900 米，已经接近 1 公里。佘山只有大约 99 米，只是一座用来比的小山。",
+    correlate: "你一次能爬大约 900 米，已经接近 1 公里。上海附近那座小山只有大约 99 米，只用来比一比。",
     correlateEn: "The 900 m you can climb in one go is already close to 1 km. Sheshan is only about 99 m, a small hill for contrast.",
     emoji: "📏",
   },
@@ -760,8 +761,20 @@ function bridgeForDecadeEn(exp) {
   return "Farther than the flight from Shanghai to Paris, the farthest you have flown.";
 }
 
+function withStopEnglish(s) {
+  const en = englishForStop(s);
+  if (!en) return s;
+  return {
+    ...s,
+    nameEn: s.nameEn || en.nameEn,
+    blurbEn: s.blurbEn || en.blurbEn,
+    correlateEn: s.correlateEn || en.correlateEn,
+    shownEn: s.shownEn || en.shownEn,
+  };
+}
+
 export function allScaleStops() {
-  const named = NAMED_SCALE_STOPS.slice();
+  const named = NAMED_SCALE_STOPS.map(withStopEnglish);
   const byId = new Set(named.map((s) => s.id));
   const out = named.slice();
   for (let exp = -35; exp <= 27; exp++) {
@@ -884,6 +897,37 @@ export function formatScaleMetres(m) {
 function sup(n) {
   const map = { "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
   return String(n).split("").map((c) => map[c] || c).join("");
+}
+
+const HEIGHT_STOP_IDS = new Set([
+  "sheshan", "duomo", "eiffel", "jinmao", "oriental-pearl", "swfc", "shanghai-tower",
+  "chance-climb", "schlern", "huangshan", "fuji", "everest",
+]);
+
+export function isOfficialHeightStop(stop) {
+  if (!stop) return false;
+  if (stop.officialHeight) return true;
+  if (stop.kind === "mountain") return true;
+  return HEIGHT_STOP_IDS.has(stop.id);
+}
+
+/** Official height in metres, never rounded to a whole kilometre. */
+export function formatHeightMetres(m) {
+  if (!Number.isFinite(Number(m))) return { zh: "—", en: "—" };
+  const n = Number(m);
+  const rounded = Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : Math.round(n * 10) / 10;
+  const zhNum = Number.isInteger(rounded) ? rounded.toLocaleString("zh-CN") : String(rounded);
+  const enNum = Number.isInteger(rounded) ? rounded.toLocaleString("en-US") : String(rounded);
+  return { zh: zhNum + " 米", en: enNum + " m" };
+}
+
+/** Kid-facing HUD line. Height stops keep the official metre figure (e.g. 3,776 米). */
+export function prettyScaleAtStop(metres, stop, { close } = {}) {
+  if (close && isOfficialHeightStop(stop)) {
+    const h = formatHeightMetres(stop.metres);
+    return { zh: "现在大约 " + h.zh, en: "About " + h.en };
+  }
+  return { zh: prettyScaleLine(metres), en: "" };
 }
 
 export function prettyScaleLine(m) {

@@ -105,7 +105,9 @@ export function childTripTitle(trip) {
 }
 
 export function childHikeTitle(hike) {
-  return String(hike.name || "").replace("（示例）", "");
+  const zh = String(hike.name || "").replace("（示例）", "");
+  const en = String(hike.nameEn || "").replace(" (sample)", "").replace(" (example)", "");
+  return en ? { zh, en } : zh;
 }
 
 export function thumbViewForRoute(from, to) {
@@ -133,9 +135,12 @@ export function flightAssumptionCopy(kmText) {
 
 export function illustratedTile(label, sub, kind, paint, onClick) {
   const cv = el("canvas", { "aria-hidden": "true" });
+  const aria = (label && typeof label === "object")
+    ? [label.zh, label.en || label.labelEn].filter(Boolean).join(" / ")
+    : String(label || "");
   const btn = el("button", {
     class: "choice-tile" + (kind ? " " + kind : ""),
-    "aria-label": label,
+    "aria-label": aria,
     onClick: () => { unlockAudio(); sfx.tap(); onClick(); },
   },
     cv,
@@ -182,11 +187,11 @@ export function renderTripPicker(app, { goHome, onPick } = {}) {
     ));
   }
   s.append(el("div", { class: "picker-ui" },
-    el("p", { class: "picker-lead" }, copy.lead),
+    el("p", { class: "picker-lead" }, copy.leadEn ? { zh: copy.lead, en: copy.leadEn } : copy.lead),
     row,
   ));
   app.replaceChildren(s);
-  talk(copy.talk);
+  talk(copy.talkEn ? { zh: copy.talk, en: copy.talkEn } : copy.talk);
   return s;
 }
 
@@ -196,17 +201,20 @@ export function renderHikePicker(app, { goHome, onPick } = {}) {
   const s = screen();
   s.classList.add("picker-screen");
   s.append(topbar({
-    title: "选一座山",
-    sub: copy.sub,
+    title: { zh: "选一座山", en: "Pick a mountain" },
+    sub: { zh: copy.sub, en: copy.subEn },
     onBack: goHome,
   }));
   const row = el("div", { class: "choices choose-next-row picker-row" });
   for (const h of hikes) {
-    const tag = h.sample ? "示例剖面" : "你的轨迹";
-    const peak = Number.isFinite(h.peakM) ? "最高约 " + Math.round(h.peakM) + " 米" : "";
+    const tag = h.sample ? { zh: "示例剖面", en: "A sample path" } : { zh: "你的轨迹", en: "Your own track" };
+    const peak = Number.isFinite(h.peakM) ? { zh: "最高约 " + Math.round(h.peakM) + " 米", en: "About " + Math.round(h.peakM) + " m at the top" } : null;
+    const sub = peak
+      ? { zh: tag.zh + " · " + peak.zh, en: tag.en + " · " + peak.en }
+      : tag;
     row.append(illustratedTile(
       childHikeTitle(h),
-      [tag, peak].filter(Boolean).join(" · "),
+      sub,
       h.sample ? "" : "ok",
       (ctx, w, hgt) => {
         fillSky(ctx, w, hgt, { top: "#7eb6e0", mid: "#b8d4c8", bot: "#163328" });
@@ -217,19 +225,22 @@ export function renderHikePicker(app, { goHome, onPick } = {}) {
     ));
   }
   s.append(el("div", { class: "picker-ui" },
-    el("p", { class: "picker-lead" }, copy.lead),
+    el("p", { class: "picker-lead" }, copy.leadEn ? { zh: copy.lead, en: copy.leadEn } : copy.lead),
     row,
   ));
   app.replaceChildren(s);
-  talk(copy.talk);
+  talk(copy.talkEn ? { zh: copy.talk, en: copy.talkEn } : copy.talk);
   return s;
 }
 
 export function switchRouteButton(label, onClick) {
+  const aria = (label && typeof label === "object")
+    ? [label.zh || label.label, label.en || label.labelEn].filter(Boolean).join(" / ")
+    : String(label || "");
   return el("button", {
     class: "icon-btn pick-btn",
-    title: label,
-    "aria-label": label,
+    title: aria,
+    "aria-label": aria,
     onClick: () => { sfx.tap(); onClick(); },
   }, label);
 }

@@ -59,15 +59,15 @@ export function cosmosHolePrompt() {
 
 export function cosmosStartButtonSpec(phase) {
   if (phase === "arrived") {
-    return { label: "再看一次", className: "pill light-replay", phase: "arrived" };
+    return { label: "再看一次", labelEn: "Watch again", className: "pill light-replay", phase: "arrived" };
   }
   if (phase === "playing") {
-    return { label: "暂停", className: "pill", phase: "playing" };
+    return { label: "暂停", labelEn: "Pause", className: "pill", phase: "playing" };
   }
   if (phase === "paused") {
-    return { label: "继续", className: "choice ok", phase: "paused" };
+    return { label: "继续", labelEn: "Continue", className: "choice ok", phase: "paused" };
   }
-  return { label: "开始", className: "choice ok", phase: "idle" };
+  return { label: "开始", labelEn: "Start", className: "choice ok", phase: "idle" };
 }
 
 /** Light should already be on the way when 光速快递 opens. */
@@ -77,9 +77,13 @@ export function applyCosmosStartButton(btn, phase) {
   const spec = cosmosStartButtonSpec(phase);
   if (!btn) return spec;
   btn.className = spec.className;
-  btn.textContent = spec.label;
+  if (typeof btn.replaceChildren === "function") {
+    btn.replaceChildren(bi(spec.label, spec.labelEn));
+  } else {
+    btn.textContent = spec.labelEn ? spec.label + "\n" + spec.labelEn : spec.label;
+  }
   btn.dataset.phase = spec.phase;
-  btn.setAttribute("aria-label", spec.label);
+  btn.setAttribute("aria-label", spec.labelEn ? spec.label + " / " + spec.labelEn : spec.label);
   return spec;
 }
 
@@ -153,19 +157,19 @@ export function renderCosmos(app, { goHome, onDone, destId, tab, forceOpen } = {
 
 function renderLight(stage, onDone, goHome, destId) {
   stage.replaceChildren();
-  const canvas = el("canvas", { class: "fill", "aria-label": "光速快递" });
+  const canvas = el("canvas", { class: "fill", "aria-label": "光速快递 / Light post" });
   stage.append(canvas);
   const board = hud([
-    { label: "目的地", value: "月亮", tone: "cyan" },
-    { label: "光要走", value: LIGHT_MOON_S.toFixed(2) + " 秒", tone: "" },
-    { label: "已经走了", value: "0 秒", tone: "mint" },
+    { label: "目的地", labelEn: "Destination", value: "月亮", tone: "cyan" },
+    { label: "光要走", labelEn: "Light takes", value: LIGHT_MOON_S.toFixed(2) + " 秒", tone: "" },
+    { label: "已经走了", labelEn: "Time so far", value: "0 秒", tone: "mint" },
   ]);
   stage.append(board);
   const dests = cosmosLightDestinations();
   let dest = dests.find((d) => d.id === destId) || dests[0];
   let t = 0, playing = false, done = false;
   const chips = el("div", { class: "bottom-bar", style: { justifyContent: "center" } });
-  const startBtn = el("button", { id: "light-start", class: "choice ok", "aria-label": "开始" }, "开始");
+  const startBtn = el("button", { id: "light-start", class: "choice ok", "aria-label": "开始 / Start" }, bi("开始", "Start"));
   applyCosmosStartButton(startBtn, "playing");
 
   function clearArrivalUi() {
@@ -249,8 +253,17 @@ function renderLight(stage, onDone, goHome, destId) {
     ctx.fillStyle = "#f4efe4";
     ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(dest.name, L, y + (dest.id === "sun" ? 84 : 58));
+    const destY = y + (dest.id === "sun" ? 84 : 58);
+    ctx.fillText(dest.name, L, destY);
+    if (dest.nameEn) {
+      ctx.font = "650 13px -apple-system, PingFang SC, sans-serif";
+      ctx.fillText(dest.nameEn, L, destY + 16);
+      ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
+    }
     ctx.fillText("地球", R, y + 58);
+    ctx.font = "650 13px -apple-system, PingFang SC, sans-serif";
+    ctx.fillText("Earth", R, y + 74);
+    ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
     const p = dest.seconds === 0 ? 1 : t / dest.seconds;
     const x = L + p * (R - L);
     ctx.fillStyle = "#fff4c2";
@@ -258,7 +271,11 @@ function renderLight(stage, onDone, goHome, destId) {
     ctx.shadowBlur = 18;
     ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
-    board.update([dest.name, prettyTime(dest.seconds), prettyTime(t)]);
+    board.update([
+      dest.nameEn ? { zh: dest.name, en: dest.nameEn } : dest.name,
+      prettyTime(dest.seconds),
+      prettyTime(t),
+    ]);
     raf = requestAnimationFrame(draw);
   };
   raf = requestAnimationFrame(draw);

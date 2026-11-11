@@ -361,7 +361,7 @@ button, input, textarea, select { font-family: inherit; }
   z-index: 5; text-align: center;
   background: var(--panel); border-radius: 24px; padding: 14px 28px;
   box-shadow: var(--shadow); min-width: 280px;
-  max-width: calc(100% - 40px);
+  max-width: min(640px, calc(100% - 200px));
 }
 .zoom-readout .pow { font-size: 18px; color: var(--cyan); }
 .zoom-readout .name { font-size: 32px; font-weight: 800; }
@@ -1158,7 +1158,7 @@ button, input, textarea, select { font-family: inherit; }
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
-  z-index: 4;
+  z-index: 7;
   pointer-events: none;
 }
 .zoom-ways > * { pointer-events: auto; }
@@ -1214,11 +1214,12 @@ button, input, textarea, select { font-family: inherit; }
   .zoom-ways { right: 180px; top: 248px; }
 }
 
-/* Mode-entry chips (e.g. 比一比速度) stay above a world-card overlay. */
+/* Mode-entry chips stay above a world-card overlay (even when the card is in .screen). */
 .zoom-mode-entry {
-  z-index: 12;
+  z-index: 20;
   pointer-events: auto;
 }
+.screen > .reveal { z-index: 8; }
 .zoom-mode-entry button { pointer-events: auto; }
 
 /* Bilingual together: Chinese on top, English just under, still large on iPad. */

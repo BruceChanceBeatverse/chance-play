@@ -195,8 +195,8 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
             tone: c.ok ? "ok" : "no",
             goHome,
             actions: [
-              { label: "再乘下去", kind: "ok", onClick: () => { asked = false; /* quizDone stays so the same question is not re-asked */ } },
-              { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
+              { label: "再乘下去", labelEn: "Keep multiplying", kind: "ok", onClick: () => { asked = false; /* quizDone stays so the same question is not re-asked */ } },
+              { label: "去尺度之旅", labelEn: "Go to the scale journey", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
             ],
           }));
         }, 900);
@@ -207,10 +207,13 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
       asked = true;
       quizDone = true;
       const height = store.get().profile.heightM;
-      const box = promptBox("你的身高乘 10，再乘 10，大约到了哪？", "先想一想，再选。", [
-        { label: "一座小山那么高", ok: height * 100 < 200 },
-        { label: "去机场那么远", ok: false },
-        { label: "还是你自己那么高", ok: false },
+      const box = promptBox(
+        { zh: "你的身高乘 10，再乘 10，大约到了哪？", en: "Your height times 10, then times 10 again — about how far is that?" },
+        { zh: "先想一想，再选。", en: "Think first, then pick." },
+        [
+        { label: "一座小山那么高", labelEn: "About as high as a small hill", ok: height * 100 < 200 },
+        { label: "去机场那么远", labelEn: "As far as the drive to the airport", ok: false },
+        { label: "还是你自己那么高", labelEn: "Still about as tall as you", ok: false },
       ], (c) => {
         // 1.2 m * 100 = 120 m, close to Sheshan (~99 m) — "一座小山".
         const ok = height * 100 < 500;
@@ -226,7 +229,7 @@ export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
             tone: "info",
             goHome,
             actions: [
-              { label: "再乘下去", kind: "ok", onClick: () => { asked = false; } },
+              { label: "再乘下去", labelEn: "Keep multiplying", kind: "ok", onClick: () => { asked = false; } },
             ],
           }));
         }, 900);

@@ -65,7 +65,12 @@ export function hud(items) {
     it._valueEl = v;
   }
   box.update = (vals) => {
-    vals.forEach((v, i) => { if (items[i]?._valueEl) items[i]._valueEl.textContent = v; });
+    vals.forEach((v, i) => {
+      const node = items[i]?._valueEl;
+      if (!node) return;
+      if (v && typeof v === "object" && (v.zh != null || v.en != null)) node.replaceChildren(bi(v.zh || "", v.en || ""));
+      else node.textContent = v;
+    });
   };
   return box;
 }
@@ -223,7 +228,8 @@ export function showCard(template, onDone) {
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap) close();
   });
-  root().append(wrap);
+  const host = (typeof document !== "undefined" && document.querySelector && document.querySelector(".screen")) || root();
+  host.append(wrap);
   requestAnimationFrame(() => paintCardArt(art, template));
   talk("一张世界卡。" + (template.title || "") + "，" + (template.value || "") + "。点卡片可以翻一面。", "A world card. " + (template.titleEn || template.title || "") + ", " + (template.valueEn || template.value || "") + ". Tap the card to flip it.");
 }

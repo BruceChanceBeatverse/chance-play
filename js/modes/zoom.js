@@ -8,9 +8,9 @@ import { renderFlight } from "./flight.js";
 import { renderHike } from "./hike.js";
 import { renderRace } from "./race.js";
 import { renderCosmos } from "./cosmos.js";
-import { bi, UI, lingerShouldAutoPause, lingerButtonCopy, saveZoomResume, loadZoomResume, clearZoomResume, serializeZoomResume } from "../i18n.js";
+import { bi, UI, lingerShouldAutoPause, lingerAutoPausePatch, lingerAutoHold, lingerButtonCopy, saveZoomResume, loadZoomResume, clearZoomResume, serializeZoomResume } from "../i18n.js";
 import {
-  resolveScaleStops, nearestScaleStop, prettyScaleLine, formatScaleMetres,
+  resolveScaleStops, nearestScaleStop, prettyScaleLine, formatScaleMetres, prettyScaleAtStop,
   SCALE_WAYSTATIONS, PLANCK_LENGTH_M, OBSERVABLE_UNIVERSE_DIAMETER_M,
 } from "../scale-data.js";
 
@@ -61,6 +61,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   let lastSpokenId = "";
   let pointers = 0;
   let cruiseGoal = null;
+  let releasedLingerId = "";
 
   const saved = loadZoomResume();
   if (saved) {
@@ -132,9 +133,15 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function toggleAuto() {
     auto = !auto;
     holdPause = false;
+    if (auto) {
+      const here = nearest(logS);
+      releasedLingerId = (here.close && here.layer && here.layer.lingerMode) ? here.layer.id : "";
+      talk("好，继续走。");
+    } else {
+      releasedLingerId = "";
+      talk("先停在这里。");
+    }
     syncPauseLabel();
-    if (auto) talk("好，继续走。");
-    else talk("先停在这里。");
   }
 
   function jumpTo(id, speak, opts = {}) {
@@ -146,7 +153,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (mountainVisited(id)) visited.add("mountain");
     auto = true;
     holdPause = false;
-    syncPauseLabel();
+    releasedLingerId = "";
     sfx.tick();
     if (style === "start-at" || style === "hop") {
       target = destLog;
@@ -164,6 +171,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       } else {
         cruiseGoal = null;
         dwellLeft = stop.familiar ? 7 : 4;
+        showLinger(stop);
         if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
       }
     } else {
@@ -175,6 +183,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       s.querySelectorAll(".prompt").forEach((n) => n.remove());
       if (speak) talk("我们一站一站走到" + stop.name + "，途中会经过很多站，不会一下子跳过去。");
     }
+    syncPauseLabel();
     if (style !== "cruise" && cruiseGoal == null) maybeAsk();
   }
 
@@ -195,6 +204,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     linger.replaceChildren();
     if (!stop || !stop.lingerMode) {
       linger.style.display = "none";
+      delete linger.dataset.stopId;
       return;
     }
     const label = lingerButtonCopy(stop);
@@ -217,9 +227,16 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     });
     linger.append(btn);
     linger.style.display = "flex";
-    if (lingerShouldAutoPause(stop) && auto) {
-      auto = false;
+    linger.dataset.stopId = stop.id || "";
+    const pause = lingerAutoPausePatch(stop, { auto, minL, maxL });
+    if (pause) {
+      auto = pause.auto;
       holdPause = false;
+      cruiseGoal = pause.cruiseGoal;
+      if (Number.isFinite(pause.target)) {
+        target = pause.target;
+        logS = pause.target;
+      }
       syncPauseLabel();
     }
   }
@@ -233,7 +250,9 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     lastTs = ts;
 
     const userIdle = performance.now() > resumeAt && !holdPause && pointers < 2;
-    if (auto && userIdle && !asked) {
+    const pre = nearest(logS);
+    const cruiseHold = lingerAutoHold(pre.layer, { close: pre.close, auto: true, releasedId: releasedLingerId });
+    if (auto && userIdle && !asked && !cruiseHold.holdCruise) {
       if (dwellLeft > 0) dwellLeft -= dt;
       else {
         target = clamp(target + cruiseDir * ZOOM_CRUISE_RATE * dt, minL, maxL);
@@ -277,13 +296,33 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (mountainVisited(layer.id)) visited.add("mountain");
 
     if (close) store.markScaleStop(layer.id);
+    const liveHold = lingerAutoHold(layer, { close, auto, releasedId: releasedLingerId });
+    if (liveHold.show) {
+      if (linger.dataset.stopId !== layer.id || linger.style.display === "none") showLinger(layer);
+      else if (liveHold.pause) {
+        const pause = lingerAutoPausePatch(layer, { auto, minL, maxL });
+        if (pause) {
+          auto = pause.auto;
+          holdPause = false;
+          cruiseGoal = pause.cruiseGoal;
+          if (Number.isFinite(pause.target)) {
+            target = pause.target;
+            logS = pause.target;
+          }
+          syncPauseLabel();
+        }
+      }
+    }
+    if (releasedLingerId && (!close || !layer || layer.id !== releasedLingerId)) {
+      releasedLingerId = "";
+    }
     if (close && layer.id !== lastDwellId) {
       lastDwellId = layer.id;
       const atGoal = ends.arrived || layer.id === "planck" || layer.id === "universe";
       const cruising = cruiseGoal != null && !atGoal;
       dwellLeft = zoomDwellForStop(layer, { cruiseGoal, atGoal: atGoal && cruiseGoal == null });
       speakStop(layer);
-      showLinger(layer);
+      if (linger.dataset.stopId !== layer.id) showLinger(layer);
       if (cruising) {
         // Keep walking the spine. Quizzes wait until the child arrives or pauses.
       } else if ((layer.id === "planck" || layer.id === "universe") && !store.hasAsked("zoom:arrived:" + layer.id)) {
@@ -350,10 +389,13 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const nameEl = readout.querySelector("#lname");
     const blurbEl = readout.querySelector("#lblurb");
     const shown = close ? layer.metres : metres;
-    powEl.textContent = prettyScale(shown);
+    const hud = prettyScaleAtStop(shown, layer, { close });
+    powEl.replaceChildren(bi(hud.zh, hud.en));
     const nearZh = close ? "" : " 附近";
     const nearEn = close ? "" : " nearby";
-    nameEl.replaceChildren(bi((layer.name || "") + nearZh, (layer.nameEn || layer.name || "") + nearEn));
+    // Never fall back English to the Chinese title — that duplicates the name
+    // and hides the missing translation.
+    nameEl.replaceChildren(bi((layer.name || "") + nearZh, layer.nameEn ? layer.nameEn + nearEn : ""));
     const extra = layer.assumption ? "" : "";
     blurbEl.replaceChildren(bi((layer.correlate || layer.blurb || "") + extra, (layer.correlateEn || layer.blurbEn || "")));
 

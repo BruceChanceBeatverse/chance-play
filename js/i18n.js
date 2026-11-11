@@ -140,9 +140,37 @@ export function lingerShouldAutoPause(stop) {
   return !!(stop && stop.lingerMode);
 }
 
+/** When a linger CTA appears, freeze the walk on that stop so a pending
+ *  cruise cannot keep sliding past (and hide the button). */
+export function lingerAutoPausePatch(stop, { auto, minL, maxL } = {}) {
+  if (!lingerShouldAutoPause(stop) || auto === false) return null;
+  const metres = Number(stop.metres);
+  const patch = { auto: false, cruiseGoal: null };
+  if (Number.isFinite(metres) && metres > 0) {
+    let stopLog = Math.log10(metres);
+    if (Number.isFinite(Number(minL))) stopLog = Math.max(Number(minL), stopLog);
+    if (Number.isFinite(Number(maxL))) stopLog = Math.min(Number(maxL), stopLog);
+    patch.target = stopLog;
+  }
+  return patch;
+}
+
+/**
+ * Keep the auto-walk parked on a linger stop (fly / climb / race / light)
+ * until the child taps 继续走. A one-shot close edge is not enough:
+ * a saved lastDwellId, a tight pair like Paris vs Earth's width, or
+ * dwell expiry must not walk past the button.
+ */
+export function lingerAutoHold(stop, { close = false, auto = false, releasedId = "" } = {}) {
+  const at = !!(close && stop && stop.lingerMode);
+  if (!at) return { at: false, pause: false, holdCruise: false, show: false };
+  const released = releasedId === stop.id;
+  return { at: true, pause: !!auto && !released, holdCruise: !released, show: true };
+}
+
 export function lingerButtonCopy(stop) {
   if (!stop || !stop.lingerMode) return { zh: "停一停", en: "Stop here" };
-  if (stop.lingerMode === "flight") return stop.id === "paris" ? UI.flyParis : UI.flyTokyo;
+  if (stop.lingerMode === "flight") return (stop.id === "paris" || stop.tripId === "pvg-cdg") ? UI.flyParis : UI.flyTokyo;
   if (stop.lingerMode === "hike") return UI.climbThis;
   if (stop.lingerMode === "race") return UI.compareSpeed;
   if (stop.lingerMode === "cosmos") return UI.seeLight;
