@@ -1,18 +1,35 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint, goToScaleJourney } from "../ui.js";
 import { hikeTempC, formatTemp, clamp } from "../geo.js";
 import { shouldShowHikePicker, resolveHike, renderHikePicker, switchRouteButton, FIRST_PLAY_HIKE_ID } from "../pickers.js";
 
 
 /** Watchable play duration for the full trail (not a real hike). */
-export const HIKE_PLAY_SECONDS = 24;
+export const HIKE_PLAY_SECONDS = 16;
+
+/**
+ * Speed up long flat approaches (Fuji's first kilometres barely climb)
+ * so a child is not forced to drag, without teleporting to the summit.
+ */
+export function hikeAutoPace(t, hike) {
+  if (!hike || !Array.isArray(hike.points) || hike.points.length < 2) return 1;
+  const here = hikeHereAt(hike, t);
+  const ahead = hikeHereAt(hike, Math.min(1, Number(t) + 0.05));
+  const dElev = Math.abs((ahead.elev ?? 0) - (here.elev ?? 0));
+  const dDist = Math.abs((ahead.dist ?? 0) - (here.dist ?? 0));
+  const climbPerKm = dDist > 1e-6 ? dElev / dDist : 0;
+  if (climbPerKm < 40) return 3.4;
+  if (climbPerKm < 100) return 2;
+  return 1;
+}
 
 /** Advance the walker when it is not being dragged and no question is holding it. */
-export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false } = {}) {
+export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false, hike = null } = {}) {
   if (dragging || asked) return prev;
   const dt = Math.max(0, Math.min(0.05, dtSec));
-  return Math.min(1, prev + dt / HIKE_PLAY_SECONDS);
+  const pace = hikeAutoPace(prev, hike);
+  return Math.min(1, prev + (dt / HIKE_PLAY_SECONDS) * pace);
 }
 
 /** Always show the official peak, not a noisy sample-point rounding. */
@@ -107,6 +124,28 @@ export function hikeWhichAskReady(here, hike) {
   return toPeak >= -w.distTol && toPeak <= Math.max(0.35, w.totalKm * 0.15);
 }
 
+export const HIKE_MOUNTAIN_CARDS = {
+  sheshan: "c-sheshan",
+  huangshan: "c-huangshan",
+  fuji: "c-fuji",
+};
+
+/** World card for the mountain under the child's feet — never a different sample peak. */
+export function hikeCardIdFor(hike) {
+  if (!hike) return null;
+  return HIKE_MOUNTAIN_CARDS[hike.id] || null;
+}
+
+export function hikeRevealOpts(hike, extra = {}) {
+  const prefer = hikeCardIdFor(hike);
+  const opts = { ...extra };
+  if (prefer) {
+    opts.prefer = prefer;
+    opts.allowOnly = [prefer];
+  }
+  return opts;
+}
+
 export function slopeRateQuestion() {
   return {
     title: "坡度快是什么意思？",
@@ -122,11 +161,11 @@ export function slopeRateQuestion() {
   };
 }
 
-export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, taskId = null } = {}) {
+export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = false, taskId = null } = {}) {
   if (shouldShowHikePicker({ hikeId, firstPlay })) {
     return renderHikePicker(app, {
       goHome,
-      onPick: (hike) => renderHike(app, { goHome, onDone, hikeId: hike.id, taskId }),
+      onPick: (hike) => renderHike(app, { goHome, onDone, goZoom, hikeId: hike.id, taskId }),
     });
   }
   const s = screen();
@@ -157,7 +196,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
     title: hike.name,
     sub: hike.sample ? "示例山路，还不是你自己走的足迹" : "你的轨迹",
     onBack: goHome,
-    extra: switchRouteButton("换一座山", () => renderHike(app, { goHome, onDone })),
+    extra: switchRouteButton("换一座山", () => renderHike(app, { goHome, onDone, goZoom })),
   }));
   const board = hud([
     { label: "走了多远", value: "0 公里", tone: "cyan" },
@@ -196,7 +235,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
     lastTs = ts;
     if (asked) hint.dismiss();
     if (!dragging && !asked && t < 1) {
-      t = autoHikeProgress(t, dt, { dragging, asked });
+      t = autoHikeProgress(t, dt, { dragging, asked, hike });
       maybeAsk();
     }
     const { ctx, w, h } = fitCanvas(canvas);
@@ -327,12 +366,12 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
       tone: "ok",
       goHome,
       actions: [
-        { label: "再爬一座", kind: "ok", onClick: () => renderHike(app, { goHome, onDone, taskId }) },
-        { label: "再走一次", onClick: () => renderHike(app, { goHome, onDone, hikeId: hike.id }) },
-        { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+        { label: "再爬一座", kind: "ok", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
+        { label: "再走一次", onClick: () => renderHike(app, { goHome, onDone, goZoom, hikeId: hike.id }) },
+        { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
       ],
     });
-    afterReveal("hike", cont, { force: true });
+    afterReveal("hike", cont, hikeRevealOpts(hike, { force: true }));
   }
 
   function askPeak() {
@@ -391,9 +430,9 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
           goHome,
           actions: [
             { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, taskId }) },
+            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
           ],
-        }));
+        }), hikeRevealOpts(hike));
       }, 900);
     });
     s.append(box);
@@ -423,9 +462,9 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
           goHome,
           actions: [
             { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, taskId }) },
+            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
           ],
-        }));
+        }), hikeRevealOpts(hike));
       }, 900);
     });
     s.append(box);
@@ -450,7 +489,7 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
       const hereNow = at(t);
       // Identifying the mountain must never complete the hike mid-climb.
       if (hikeAfterQuizAction({ atSummit: atSummit(hereNow) }) === "celebrate") {
-        afterReveal("hike", () => celebrateSummit());
+        afterReveal("hike", () => celebrateSummit(), hikeRevealOpts(hike));
         return;
       }
       afterReveal("hike", () => offerContinue(s, {
@@ -460,9 +499,9 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
         goHome,
         actions: [
           { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; quizKind = null; } },
-          { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, taskId }) },
+          { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
         ],
-      }));
+      }), hikeRevealOpts(hike));
     });
     s.append(box);
   }
@@ -475,6 +514,8 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
     const q = slopeRateQuestion();
     const box = promptBox(q.title, q.body, q.choices, (c) => {
       store.recordAnswer("hike", !!c.ok);
+      store.completeTodayTask("t30");
+      if (taskId) store.completeTodayTask(taskId);
       markAnswer(box, c, !!c.ok);
       const line = c.ok ? q.okLine : q.noLine;
       talk(line);
@@ -488,9 +529,9 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false, tas
           goHome,
           actions: [
             { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
-            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, taskId }) },
+            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
           ],
-        }));
+        }), hikeRevealOpts(hike));
       }, 900);
     });
     s.append(box);

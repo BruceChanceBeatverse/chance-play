@@ -64,6 +64,20 @@ export function finishMode(onDone, goHome) {
   else goHome?.();
 }
 
+/** The 「去尺度之旅」 button must open the scale journey, not just return home. */
+export function goToScaleJourney({ goZoom, onDone, goHome } = {}) {
+  if (typeof goZoom === "function") {
+    goZoom();
+    return "zoom";
+  }
+  if (typeof onDone === "function") {
+    onDone();
+    return "done";
+  }
+  goHome?.();
+  return "home";
+}
+
 export function promptBox(title, body, choices, onPick, opts = {}) {
   const dock = opts.dock ? " dock-" + opts.dock : " dock-bottom";
   const compact = opts.compact ? " compact" : "";
@@ -105,6 +119,9 @@ export const ENDPOINT_CARD_IDS = new Set(["c-planck", "c-universe"]);
 export function maybeDropCard(mode, opts = {}) {
   const owned = new Set(store.get().cards.map((c) => c.id));
   let pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
+  if (Array.isArray(opts.allowOnly) && opts.allowOnly.length) {
+    pool = pool.filter((c) => opts.allowOnly.includes(c.id));
+  }
   if (!opts.allowEndpoints && !(opts.prefer && ENDPOINT_CARD_IDS.has(opts.prefer))) {
     pool = pool.filter((c) => !ENDPOINT_CARD_IDS.has(c.id));
   }
@@ -199,15 +216,41 @@ export function showCard(template, onDone) {
   talk("一张世界卡。" + template.title + "，" + template.value + "。点卡片可以翻一面。");
 }
 
+/** Settled class list so a flipped card lands square, not in mid-flip perspective. */
+export function cardFlipSettledClasses({ flipped = false } = {}) {
+  return "card-drop flippable" + (flipped ? " flipped" : "") + " is-settled";
+}
+
 export function bindCardFlip(card) {
   if (!card || card._flipBound) return card;
   card._flipBound = true;
   card.classList.add("flippable");
+  // Start settled so the first face is a flat rectangle, not a 3D sliver.
+  card.classList.add("is-settled");
+  let flipTimer = 0;
+  const settle = (ev) => {
+    const inner = card.querySelector(".card-inner");
+    if (ev && ev.target && inner && ev.target !== inner) return;
+    if (ev && ev.propertyName && ev.propertyName !== "transform") return;
+    if (flipTimer) { clearTimeout(flipTimer); flipTimer = 0; }
+    if (inner) inner.removeEventListener("transitionend", settle);
+    card.classList.remove("is-flipping");
+    card.classList.add("is-settled");
+  };
   card.addEventListener("click", (e) => {
     if (e.target.closest && e.target.closest("button")) return;
     e.stopPropagation();
+    const inner = card.querySelector(".card-inner");
+    if (flipTimer) { clearTimeout(flipTimer); flipTimer = 0; }
+    if (inner) inner.removeEventListener("transitionend", settle);
+    card.classList.remove("is-settled");
+    card.classList.add("is-flipping");
+    void card.offsetWidth;
     card.classList.toggle("flipped");
     sfx.tap();
+    if (inner) inner.addEventListener("transitionend", settle);
+    // If transitions are disabled or the event is missed, still land square.
+    flipTimer = setTimeout(() => settle(), 700);
   });
   return card;
 }

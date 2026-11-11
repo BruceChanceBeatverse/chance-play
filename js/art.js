@@ -6,6 +6,16 @@ import { eachRing } from "./coasts.js";
 import { lonLatToXY, clamp, lerp, orthographic, greatCirclePoints } from "./geo.js";
 import { airportByCode } from "./data.js";
 
+/** Canvas gradients throw if any component is NaN/Infinity. Skip those draws. */
+export function canCreateRadialGradient(x0, y0, r0, x1, y1, r1) {
+  return [x0, y0, r0, x1, y1, r1].every(Number.isFinite) && r0 >= 0 && r1 >= 0;
+}
+
+function safeRadial(ctx, x0, y0, r0, x1, y1, r1) {
+  if (!canCreateRadialGradient(x0, y0, r0, x1, y1, r1) || !ctx || typeof ctx.createRadialGradient !== "function") return null;
+  return ctx.createRadialGradient(x0, y0, r0, x1, y1, r1);
+}
+
 export function fillSky(ctx, w, h, { top = "#143a5c", mid = "#0c2740", bot = "#071018" } = {}) {
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, top);
@@ -123,7 +133,9 @@ export function routeThumbLabelPos(x, y, label, w, h, { labelY = -16, fontSize =
 }
 
 export function drawCityGlow(ctx, x, y, label, { color = "#f5c84c", labelY = -16, labelAt } = {}) {
-  const g = ctx.createRadialGradient(x, y, 2, x, y, 28);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const g = safeRadial(ctx, x, y, 2, x, y, 28);
+  if (!g) return;
   g.addColorStop(0, "rgba(255, 230, 160, 0.85)");
   g.addColorStop(0.4, "rgba(245, 200, 76, 0.28)");
   g.addColorStop(1, "rgba(245, 200, 76, 0)");
@@ -155,12 +167,14 @@ export function drawSeaCloseup(ctx, w, h, { horizonY } = {}) {
 
   // Soft sun on the left, above the hills, clear of the centered plane.
   const sunX = w * 0.18, sunY = Math.max(36, hy * 0.38);
-  const sunG = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 70);
-  sunG.addColorStop(0, "rgba(255, 236, 180, 0.95)");
-  sunG.addColorStop(0.35, "rgba(255, 210, 130, 0.45)");
-  sunG.addColorStop(1, "rgba(255, 200, 120, 0)");
-  ctx.fillStyle = sunG;
-  ctx.beginPath(); ctx.arc(sunX, sunY, 70, 0, Math.PI * 2); ctx.fill();
+  const sunG = safeRadial(ctx, sunX, sunY, 8, sunX, sunY, 70);
+  if (sunG) {
+    sunG.addColorStop(0, "rgba(255, 236, 180, 0.95)");
+    sunG.addColorStop(0.35, "rgba(255, 210, 130, 0.45)");
+    sunG.addColorStop(1, "rgba(255, 200, 120, 0)");
+    ctx.fillStyle = sunG;
+    ctx.beginPath(); ctx.arc(sunX, sunY, 70, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.fillStyle = "rgba(255, 236, 190, 0.92)";
   ctx.beginPath(); ctx.arc(sunX, sunY, 18, 0, Math.PI * 2); ctx.fill();
 
@@ -318,11 +332,17 @@ export function drawPlane(ctx, x, y, angle, scale = 1) {
 }
 
 export function drawGlobe(ctx, cx, cy, R, { lonC = 125, latC = 28, route = null } = {}) {
-  const grd = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
-  grd.addColorStop(0, "#6ec8d8");
-  grd.addColorStop(0.45, "#1d6a86");
-  grd.addColorStop(1, "#071018");
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = grd; ctx.fill();
+  const grd = safeRadial(ctx, cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  if (grd) {
+    grd.addColorStop(0, "#6ec8d8");
+    grd.addColorStop(0.45, "#1d6a86");
+    grd.addColorStop(1, "#071018");
+    ctx.fillStyle = grd;
+  } else {
+    ctx.fillStyle = "#1d6a86";
+  }
+  ctx.fill();
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
   ctx.fillStyle = "#2f8a5a";
@@ -353,11 +373,13 @@ export function drawGlobe(ctx, cx, cy, R, { lonC = 125, latC = 28, route = null 
     }
     ctx.stroke();
   }
-  const shade = ctx.createRadialGradient(cx + R * 0.3, cy, R * 0.2, cx, cy, R);
-  shade.addColorStop(0, "rgba(0,0,0,0)");
-  shade.addColorStop(1, "rgba(0,0,0,0.35)");
-  ctx.fillStyle = shade;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  const shade = safeRadial(ctx, cx + R * 0.3, cy, R * 0.2, cx, cy, R);
+  if (shade) {
+    shade.addColorStop(0, "rgba(0,0,0,0)");
+    shade.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = shade;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
   ctx.strokeStyle = "rgba(180, 240, 255, 0.45)";
   ctx.lineWidth = 2;
@@ -707,10 +729,15 @@ function paintGenericThumb(ctx, w, h) {
 }
 
 export function drawMoon(ctx, x, y, r) {
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-  g.addColorStop(0, "#f0ead8");
-  g.addColorStop(1, "#a79c86");
-  ctx.fillStyle = g;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(r) || r <= 0) return;
+  const g = safeRadial(ctx, x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+  if (g) {
+    g.addColorStop(0, "#f0ead8");
+    g.addColorStop(1, "#a79c86");
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = "#a79c86";
+  }
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = "rgba(80,70,60,0.18)";
   ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.15, r * 0.18, 0, Math.PI * 2); ctx.fill();
@@ -719,15 +746,22 @@ export function drawMoon(ctx, x, y, r) {
 }
 
 export function drawSun(ctx, x, y, r) {
-  const halo = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 1.8);
-  halo.addColorStop(0, "rgba(255, 230, 120, 0.85)");
-  halo.addColorStop(1, "rgba(255, 180, 40, 0)");
-  ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
-  const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
-  g.addColorStop(0, "#fff4c2");
-  g.addColorStop(1, "#f5c84c");
-  ctx.fillStyle = g;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(r) || r <= 0) return;
+  const halo = safeRadial(ctx, x, y, r * 0.4, x, y, r * 1.8);
+  if (halo) {
+    halo.addColorStop(0, "rgba(255, 230, 120, 0.85)");
+    halo.addColorStop(1, "rgba(255, 180, 40, 0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  const g = safeRadial(ctx, x, y, r * 0.1, x, y, r);
+  if (g) {
+    g.addColorStop(0, "#fff4c2");
+    g.addColorStop(1, "#f5c84c");
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = "#f5c84c";
+  }
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
 }
 

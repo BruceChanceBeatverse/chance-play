@@ -985,23 +985,44 @@ button, input, textarea, select { font-family: inherit; }
 .lock-explain p { font-size: 20px; color: var(--cream); line-height: 1.45; }
 .lock-explain .choice { margin-top: 16px; }
 
-/* Flippable world cards */
+/* Flippable world cards.
+   3D perspective is used only while the card is turning. Once the flip
+   finishes, the visible face is a flat, square, readable rectangle — never
+   left in a mid-flip trapezoid. */
 .card-drop.flippable {
-  perspective: 900px;
+  position: relative;
+  perspective: none;
   cursor: pointer;
   background: transparent;
   border: 0;
   box-shadow: none;
   padding: 0;
+  overflow: hidden;
+}
+.card-drop.flippable.is-flipping {
+  perspective: 900px;
+  overflow: visible;
 }
 .card-inner {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.55s ease;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.45s ease;
+  transform: rotateY(0deg);
 }
-.card-drop.flipped .card-inner { transform: rotateY(180deg); }
+.card-drop.flipped.is-flipping .card-inner,
+.card-drop.flipped:not(.is-settled) .card-inner {
+  transform: rotateY(180deg);
+}
+.card-drop.is-settled .card-inner {
+  transform: none;
+  transform-style: flat;
+  -webkit-transform-style: flat;
+  transition: none;
+}
 .card-face {
   position: absolute;
   inset: 0;
@@ -1018,12 +1039,28 @@ button, input, textarea, select { font-family: inherit; }
   text-align: center;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transform: rotateY(0deg);
 }
 .card-face.card-back {
   transform: rotateY(180deg);
   background: linear-gradient(180deg, #f4efe4 0%, #e4c98a 100%);
   border-color: #5ce1e6;
   color: #1a1208;
+}
+/* Settled back: drop the 3D rotate so the cream face sits square. */
+.card-drop.flipped.is-settled .card-face.card-back {
+  transform: none;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+}
+.card-drop.flipped.is-settled .card-face.card-front {
+  visibility: hidden;
+  pointer-events: none;
+}
+.card-drop:not(.flipped).is-settled .card-face.card-back {
+  visibility: hidden;
+  pointer-events: none;
+  transform: none;
 }
 .card-face.card-back .k {
   color: #8a5a10;

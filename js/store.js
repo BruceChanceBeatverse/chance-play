@@ -39,6 +39,7 @@ function fresh() {
     todayDate: null,
     todayMinutes: 0,
     todayModes: [],
+    todayCompletedTasks: [],
     endedToday: false,
     weeklyReports: [],
   };
@@ -113,6 +114,7 @@ function load() {
     if (Array.isArray(merged.cards)) {
       merged.cards = merged.cards.map((c) => resolveCard(c) || c);
     }
+    if (!Array.isArray(merged.todayCompletedTasks)) merged.todayCompletedTasks = [];
     return merged;
   } catch {
     return fresh();
@@ -181,6 +183,7 @@ export const store = {
         todayStartedAt: Date.now(),
         todayMinutes: 0,
         todayModes: [],
+        todayCompletedTasks: [],
         endedToday: false,
       };
       persist();
@@ -222,6 +225,29 @@ export const store = {
     state = { ...state, streaks, levels };
     persist();
     return lv;
+  },
+  /** Finishing a full scale walk (Planck or universe) counts as a level. */
+  recordJourneyComplete(mode) {
+    const levels = { ...state.levels };
+    const streaks = { ...state.streaks, [mode]: { ...(state.streaks[mode] || { correct: 0, wrong: 0 }), correct: 0, wrong: 0 } };
+    let lv = levels[mode] || 1;
+    if (lv < 5) lv += 1;
+    levels[mode] = lv;
+    state = { ...state, streaks, levels };
+    persist();
+    return lv;
+  },
+  completeTodayTask(taskId) {
+    if (!taskId) return false;
+    this.ensureToday();
+    const prev = Array.isArray(state.todayCompletedTasks) ? state.todayCompletedTasks : [];
+    if (prev.includes(taskId)) return false;
+    state = { ...state, todayCompletedTasks: [...prev, taskId] };
+    persist();
+    return true;
+  },
+  isTodayTaskComplete(taskId) {
+    return !!taskId && (state.todayCompletedTasks || []).includes(taskId);
   },
   level(mode) { return state.levels[mode] || 1; },
   cosmosUnlocked() {

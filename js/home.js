@@ -16,12 +16,15 @@ export function renderHome(app, go) {
   ui.append(hello, sub);
 
   const todayTask = pickTodayTask(day, st);
+  const banner = todayTaskBanner(todayTask);
   const todayCard = el("div", { class: "today-card" },
     el("div", {},
-      el("div", { class: "big" }, todayTask.zh),
+      el("div", { class: "big" }, banner.zh),
       st.parentReplies.length ? el("div", { style: { color: "var(--mint)", marginTop: "6px" } }, "爸爸回过你一句") : null,
     ),
-    el("button", { class: "go", onClick: () => startToday(go, todayTask) }, "开始"),
+    banner.showStart
+      ? el("button", { class: "go", onClick: () => startToday(go, todayTask) }, "开始")
+      : el("div", { class: "hello-sub", style: { marginTop: "8px" } }, "想去哪一站，就点下面。"),
   );
   ui.append(todayCard);
 
@@ -80,23 +83,41 @@ export function pickTodayTask(day, st) {
   const modes = theme.modes.filter((m) => m !== "explore" && m !== "teach");
   const mode = modes[0] || "flight";
   const lv = st.levels[mode] || 1;
+  const done = new Set(st.todayCompletedTasks || []);
   // Exact level first, so a level-1 race day talks about bike vs car
   // on the way to school — not "滑雪去东京" which the L1 mode will not play.
   const exact = TASK_BANK.filter((t) => t.mode === mode && t.level === lv);
   const lower = TASK_BANK.filter((t) => t.mode === mode && t.level <= lv);
-  const list = exact.length ? exact : (lower.length ? lower : TASK_BANK);
-  const rec = st.parentTasks.find((p) => list.some((t) => t.id === p.taskId));
+  const unusedExact = exact.filter((t) => !done.has(t.id));
+  const unusedLower = lower.filter((t) => !done.has(t.id));
+  const list = unusedExact.length ? unusedExact : unusedLower;
+  if (!list.length) {
+    return { id: "today-done", mode, zh: "今天的问题你会了。想去哪一站，你自己选。", done: true };
+  }
+  const rec = (st.parentTasks || []).find((p) => list.some((t) => t.id === p.taskId));
   const task = rec ? list.find((t) => t.id === rec.taskId) : list[(new Date().getDate()) % list.length];
   return task;
 }
 
+/** Once today's prompt has been answered, do not keep re-asking it on the home banner. */
+export function todayTaskBanner(task) {
+  if (task && task.done) {
+    return { zh: task.zh, showStart: false, done: true };
+  }
+  return { zh: (task && task.zh) || "", showStart: true, done: false };
+}
+
 export function todayModeArg(task) {
-  if (!task) return null;
+  if (!task || task.done) return null;
   return { id: task.mode, taskId: task.id };
 }
 
 function startToday(go, task) {
   unlockAudio();
+  if (task && task.done) {
+    talk("今天的问题你会了。想去哪一站，你自己选。");
+    return;
+  }
   playParentTask(task);
   const st = store.get();
   if (st.endedToday) {

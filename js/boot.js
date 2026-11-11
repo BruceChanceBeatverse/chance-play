@@ -36,7 +36,8 @@ function go(name, arg) {
   if (name === "teach") { renderTeach(app, go); return; }
   if (name === "mode") {
     const id = typeof arg === "string" ? arg : arg && arg.id;
-    const opts = { goHome, onDone: afterMode };
+    const goZoom = () => go("mode", "zoom");
+    const opts = { goHome, onDone: afterMode, goZoom };
     if (arg && typeof arg === "object") {
       if (arg.tripId) opts.tripId = arg.tripId;
       if (arg.hikeId) opts.hikeId = arg.hikeId;

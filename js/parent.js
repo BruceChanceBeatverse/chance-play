@@ -79,7 +79,7 @@ export function renderParent(app, go) {
       trips: [...s.trips, { id: a.toLowerCase() + "-" + b.toLowerCase() + "-" + Date.now(), from: a, to: b, label: A.city + " → " + B.city, note: "大圆航线，实际飞行会稍长。", featured: false }],
     }));
     redrawTrips();
-    toast("航线已加上。打开飞行地图，点这趟旅行就能飞。");
+    toast("航线已加上。在家长页可以看到，不会出现在小朋友的选飞行画面里。");
   } }, "加上这趟旅行")));
   const codes = Object.keys(AIRPORTS).join("、");
   wrap.append(el("p", { class: "note" }, "内置机场（离线）：" + codes));
@@ -106,7 +106,7 @@ export function renderParent(app, go) {
       const hike = parseGpx(await f.text(), f.name);
       store.update((s) => ({ ...s, hikes: [...s.hikes, hike] }));
       redrawHikes();
-      toast("已经加上：" + hike.name + "。打开爬山剖面，就能选它。");
+      toast("已经加上：" + hike.name + "。在家长页可以看到，不会出现在小朋友的选山画面里。");
     } catch (err) {
       toast("这个 GPX 读不出来：" + (err.message || err));
     }

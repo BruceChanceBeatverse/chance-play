@@ -713,10 +713,18 @@ export function formatScaleMetres(m) {
   if (m < 1) return niceNum(m * 1000) + " 毫米";
   if (m < 1000) return (m >= 10 ? m.toFixed(0) : m.toFixed(2)) + " 米";
   const km = m / 1000;
+  // Keep 公里 through everyday distances. 10^9 m is 100 万公里, not "0 亿公里".
   if (km < 1e6) return Math.round(km).toLocaleString("zh-CN") + " 公里";
+  if (km < 1e8) {
+    const wan = km / 1e4;
+    const wanText = Math.abs(wan - Math.round(wan)) < 0.05 ? String(Math.round(wan)) : wan.toFixed(1).replace(/\.0$/, "");
+    return wanText + " 万公里";
+  }
   const ly = m / (LIGHT_YEAR_KM * 1000);
   if (ly < 0.1) {
     const yi = km / 1e8;
+    // Never round a small 亿 value down to 0.
+    if (yi < 0.15) return (Math.round(yi * 100) / 100).toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + " 亿公里";
     return (Math.abs(yi - Math.round(yi)) < 0.05 ? String(Math.round(yi)) : yi.toFixed(2).replace(/\.00$/, "")) + " 亿公里";
   }
   if (ly < 10) return ly.toFixed(2).replace(/\.00$/, "") + " 光年";

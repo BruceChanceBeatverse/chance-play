@@ -369,6 +369,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function celebrateEndpoint(stop) {
     if (!stop || store.hasAsked("zoom:arrived:" + stop.id)) return;
     store.rememberAsked("zoom:arrived:" + stop.id);
+    store.recordJourneyComplete("zoom");
     asked = true;
     auto = false;
     const title = stop.id === "planck" ? "到了！这是最小的普朗克长度" : "到了！这是能看到的整个宇宙";

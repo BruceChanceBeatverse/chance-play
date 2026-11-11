@@ -395,7 +395,7 @@ export const TOMORROW_QUESTIONS = [
 
 export const CARD_TEMPLATES = [
   { id: "c-tokyo", title: "上海到东京", value: "1,740 公里", mode: "flight",
-    backTitle: "这趟航班", back: "从浦东飞到东京成田，大约 1,740 公里。这是 Chance 坐过的一趟飞机。" },
+    backTitle: "这趟航班", back: "从浦东飞到东京羽田，大约 1,740 公里。这是 Chance 坐过的一趟飞机。" },
   { id: "c-paris", title: "上海到巴黎", value: "9,287 公里", mode: "flight",
     backTitle: "更远的一趟", back: "上海到巴黎大约 9,287 公里，比去东京远大约 5.3 倍。" },
   { id: "c-lapse", title: "每升高 1 公里", value: "大约凉 6.5°C", mode: "flight",

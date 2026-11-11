@@ -1,7 +1,8 @@
 /**
  * Child-facing trip and hike pickers.
- * After first-play, 我的飞行地图 and 爬山剖面 must let the child open
- * Tokyo, Paris, parent-added trips, sample mountains, and imported GPX.
+ * After first-play, 我的飞行地图 and 爬山剖面 let the child open
+ * Tokyo (Haneda) and Paris, and the sample mountains.
+ * Parent-added trips and imported GPX stay in the parent view only.
  * No new cities are invented here — only trips and hikes already in the store.
  */
 import { store } from "./store.js";
@@ -13,6 +14,19 @@ import { paintRouteThumb, fillSky, drawMountainPair } from "./art.js";
 
 export function playableTrips() {
   return (store.get().trips || []).filter((t) => airportByCode(t.from) && airportByCode(t.to));
+}
+
+/** Built-in featured trips only — parent-added routes stay off the child picker. */
+export function childPlayableTrips() {
+  return playableTrips().filter((t) => t.featured);
+}
+
+export function childFlightPickerCopy() {
+  return {
+    sub: "去东京羽田、去巴黎",
+    talk: "选一趟飞行。去东京羽田，或去巴黎。",
+    lead: "点一张图，就开始飞。",
+  };
 }
 
 export function resolveTrip(tripId) {
@@ -30,6 +44,19 @@ export function shouldShowFlightPicker({ tripId, firstPlay } = {}) {
 
 export function playableHikes() {
   return (store.get().hikes || []).filter((h) => Array.isArray(h.points) && h.points.length >= 2);
+}
+
+/** Sample mountains only — imported GPX stays off the child picker. */
+export function childPlayableHikes() {
+  return playableHikes().filter((h) => h.sample !== false);
+}
+
+export function childHikePickerCopy() {
+  return {
+    sub: "佘山、黄山、富士山",
+    talk: "选一座山。有佘山、黄山和富士山。",
+    lead: "点一座山，把小人拖上去。示例山会标明不是你的足迹。",
+  };
 }
 
 export function resolveHike(hikeId) {
@@ -115,12 +142,13 @@ export function illustratedTile(label, sub, kind, paint, onClick) {
 }
 
 export function renderTripPicker(app, { goHome, onPick } = {}) {
-  const trips = playableTrips();
+  const trips = childPlayableTrips();
+  const copy = childFlightPickerCopy();
   const s = screen();
   s.classList.add("picker-screen");
   s.append(topbar({
     title: "选一趟飞行",
-    sub: "去东京羽田、去巴黎，或爸爸加上的旅行",
+    sub: copy.sub,
     onBack: goHome,
   }));
   const row = el("div", { class: "choices choose-next-row picker-row" });
@@ -138,21 +166,22 @@ export function renderTripPicker(app, { goHome, onPick } = {}) {
     ));
   }
   s.append(el("div", { class: "picker-ui" },
-    el("p", { class: "picker-lead" }, "点一张图，就开始飞。"),
+    el("p", { class: "picker-lead" }, copy.lead),
     row,
   ));
   app.replaceChildren(s);
-  talk("选一趟飞行。去东京羽田，去巴黎，或者爸爸加上的旅行。");
+  talk(copy.talk);
   return s;
 }
 
 export function renderHikePicker(app, { goHome, onPick } = {}) {
-  const hikes = playableHikes();
+  const hikes = childPlayableHikes();
+  const copy = childHikePickerCopy();
   const s = screen();
   s.classList.add("picker-screen");
   s.append(topbar({
     title: "选一座山",
-    sub: "示例山，或导入的足迹",
+    sub: copy.sub,
     onBack: goHome,
   }));
   const row = el("div", { class: "choices choose-next-row picker-row" });
@@ -172,11 +201,11 @@ export function renderHikePicker(app, { goHome, onPick } = {}) {
     ));
   }
   s.append(el("div", { class: "picker-ui" },
-    el("p", { class: "picker-lead" }, "点一座山，把小人拖上去。示例山会标明不是你的足迹。"),
+    el("p", { class: "picker-lead" }, copy.lead),
     row,
   ));
   app.replaceChildren(s);
-  talk("选一座山。有示例，也有爸爸导进来的小路。");
+  talk(copy.talk);
   return s;
 }
 

@@ -1,9 +1,9 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer } from "../ui.js";
+import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer, goToScaleJourney } from "../ui.js";
 import { formatNumber } from "../geo.js";
 
-export function renderElevator(app, { goHome, onDone } = {}) {
+export function renderElevator(app, { goHome, onDone, goZoom } = {}) {
   const s = screen();
   s.classList.add("mode-elevator");
   const level = store.level("elevator");
@@ -150,7 +150,7 @@ export function renderElevator(app, { goHome, onDone } = {}) {
             goHome,
             actions: [
               { label: "再乘下去", kind: "ok", onClick: () => { asked = false; /* quizDone stays so the same question is not re-asked */ } },
-              { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+              { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
             ],
           }));
         }, 900);

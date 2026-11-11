@@ -1,8 +1,6 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import {
-  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen,
-} from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen, goToScaleJourney } from "../ui.js";
 import {
   airportByCode, routeDistanceKm,
 } from "../data.js";
@@ -54,11 +52,11 @@ function metrics(progress, km) {
   return { flown, remainH, alt, temp };
 }
 
-export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } = {}) {
+export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = false } = {}) {
   if (shouldShowFlightPicker({ tripId, firstPlay })) {
     return renderTripPicker(app, {
       goHome,
-      onPick: (trip) => renderFlight(app, { goHome, tripId: trip.id, onDone, firstPlay: false }),
+      onPick: (trip) => renderFlight(app, { goHome, tripId: trip.id, onDone, goZoom, firstPlay: false }),
     });
   }
   const s = screen();
@@ -81,7 +79,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
   const assume = flightAssumptionCopy("约 " + formatKm(km));
   const canvas = el("canvas", { class: "fill", "aria-label": "飞行地图" });
   const switchBtn = firstPlay ? null : switchRouteButton("换一趟", () => {
-    renderFlight(app, { goHome, onDone });
+    renderFlight(app, { goHome, onDone, goZoom });
   });
   const bar = topbar({
     title: trip.label,
@@ -155,8 +153,9 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
 
     const xy = pathXY(w, h);
     drawRoute(ctx, xy, progress);
-    drawCityGlow(ctx, xy[0].x, xy[0].y, from.city);
-    drawCityGlow(ctx, xy[xy.length - 1].x, xy[xy.length - 1].y, to.city);
+    const start = xy[0], end = xy[xy.length - 1];
+    if (start && Number.isFinite(start.x) && Number.isFinite(start.y)) drawCityGlow(ctx, start.x, start.y, from.city);
+    if (end && Number.isFinite(end.x) && Number.isFinite(end.y)) drawCityGlow(ctx, end.x, end.y, to.city);
 
     const p = interpolateGreatCircle(from.lat, from.lon, to.lat, to.lon, progress);
     const here = project(p.lon, p.lat, w, h);
@@ -214,22 +213,33 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     progress = 1;
     const city = to.city || "目的地";
     talk("到" + city + "了！一共 " + formatKm(km) + "。");
+    if (firstPlay) {
+      afterReveal("flight", () => offerContinue(s, {
+        title: "到" + city + "了",
+        body: "这趟一共 " + formatKm(km) + "。下一站，你来选。",
+        tone: "ok",
+        actions: [
+          { label: "下一站，你来选", kind: "ok", onClick: () => onDone?.() },
+        ],
+      }));
+      return;
+    }
     afterReveal("flight", () => offerContinue(s, {
       title: "到" + city + "了",
       body: "这趟一共 " + formatKm(km) + "。还可以再飞一次，或换一趟。",
       tone: "ok",
       goHome,
       actions: [
-        { label: "再飞一次", kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, tripId, firstPlay: false }) },
-        { label: city === "巴黎" ? "去东京" : "去巴黎", onClick: () => renderFlight(app, { goHome, onDone, tripId: city === "巴黎" ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
-        { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+        { label: "再飞一次", kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId, firstPlay: false }) },
+        { label: city === "巴黎" ? "去东京" : "去巴黎", onClick: () => renderFlight(app, { goHome, onDone, goZoom, tripId: city === "巴黎" ? "pvg-hnd" : "pvg-cdg", firstPlay: false }) },
+        { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
       ],
     }));
   }
 
   function afterFlight(host) {
-    // First-play still goes to the big-picture / next-stop chooser after its midpoint beat.
-    if (firstPlay) { onDone?.(); return; }
+    // After the welcome midpoint (zoom-out + card), keep flying to Tokyo.
+    // The chooser waits until the plane has actually arrived.
     resumeFlight();
   }
 
@@ -365,6 +375,11 @@ function autoAsk(level) {
 /** Mid-route quizzes must resume the flight, not end it. Arrival only at the destination. */
 export function afterQuizFlightAction(progress) {
   return (Number(progress) >= 0.995) ? "arrive" : "resume";
+}
+
+/** Welcome midpoint (half-time quiz / card) continues the Tokyo flight; the chooser waits for arrival. */
+export function firstPlayAfterMidpointAction() {
+  return "resume";
 }
 
 /** While a card or question is up, leave the plane where it was. */

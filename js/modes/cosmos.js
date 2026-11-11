@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, hud, fitCanvas, bindDrag, afterReveal, promptBox, toast, finishMode, questionHudLayout, HUD_LAYOUT } from "../ui.js";
+import { el, screen, topbar, hud, fitCanvas, bindDrag, afterReveal, promptBox, toast, questionHudLayout, HUD_LAYOUT } from "../ui.js";
 import {
   LIGHT_MOON_S, LIGHT_SUN_S, PROXIMA_LY, SUN_SCHWARZSCHILD_KM,
   SGR_A_SOLAR_MASSES, SGR_A_SCHWARZSCHILD_KM, EARTH_MEAN_DIAMETER_KM, formatNumber, clamp,
@@ -156,7 +156,6 @@ function renderLight(stage, onDone, goHome) {
   const chips = el("div", { class: "bottom-bar", style: { justifyContent: "center" } });
   const startBtn = el("button", { id: "light-start", class: "choice ok", "aria-label": "开始" }, "开始");
   applyCosmosStartButton(startBtn, "playing");
-  let finishedOnce = false;
 
   function clearArrivalUi() {
     stage.querySelectorAll(".prompt").forEach((n) => n.remove());
@@ -256,12 +255,15 @@ function renderLight(stage, onDone, goHome) {
   function finish() {
     done = true; playing = false;
     applyCosmosStartButton(startBtn, "arrived");
-    if (finishedOnce) return;
-    finishedOnce = true;
+    // Every destination (moon, sun, nearest star) gets its own arrival title,
+    // including after switching away from the moon or pressing 再看一次.
+    clearArrivalUi();
     talk(cosmosArrivalTalk(dest));
     const box = promptBox(cosmosArrivalTitle(dest), dest.note, [{ label: "下一步", kind: "ok" }], () => {
       box.remove();
-      afterReveal("cosmos", () => finishMode(onDone, goHome), { prefer: cosmosCardForBeat(dest.id) });
+      afterReveal("cosmos", () => {
+        talk(cosmosStayTalk());
+      }, { prefer: cosmosCardForBeat(dest.id) });
     });
     stage.append(box);
     store.recordAnswer("cosmos", true);
@@ -353,13 +355,25 @@ function renderHole(stage, onDone, goHome) {
         store.recordAnswer("cosmos", !!c.ok);
         box.remove();
         talk(c.ok ? q.okLine : q.noLine);
-        afterReveal("cosmos", () => finishMode(onDone, goHome), { prefer: "c-blackhole", force: true });
+        afterReveal("cosmos", () => {
+          talk("还可以再拉拉看，或去光速快递。");
+        }, { prefer: "c-blackhole", force: true });
       });
       stage.append(box);
       talk(q.title);
     }
   });
   stage._cleanup = () => { running = false; cancelAnimationFrame(raf); };
+}
+
+export const COSMOS_STAY_AFTER_CARD = true;
+
+export function cosmosAfterArrivalAction() {
+  return "stay";
+}
+
+export function cosmosStayTalk() {
+  return "还可以把光送到太阳，或最近的恒星。也可以去看黑洞。";
 }
 
 function prettyTime(s) {
