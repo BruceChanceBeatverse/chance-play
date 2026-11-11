@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, afterReveal, promptBox, finishMode } from "../ui.js";
+import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer } from "../ui.js";
 import { formatNumber } from "../geo.js";
 
 export function renderElevator(app, { goHome, onDone } = {}) {
@@ -11,6 +11,7 @@ export function renderElevator(app, { goHome, onDone } = {}) {
   let exp = 0; // value = 10^exp, in "units" (a unit can be 1 metre, etc.)
   const minE = -2, maxE = 6;
   let asked = false;
+  let userDrove = false;
 
   s.append(topbar({ title: "十倍电梯", sub: "每按一次 ×10 或 ÷10", onBack: goHome }));
   const stage = el("div", { class: "stage", style: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "18px" } });
@@ -28,8 +29,8 @@ export function renderElevator(app, { goHome, onDone } = {}) {
     const value = Math.pow(10, exp);
     num.textContent = formatNumber(value);
     const names = {
-      "-2": "0.01，很小的一粒",
-      "-1": "0.1",
+      "-2": "0.01，百分之一，很小的一粒",
+      "-1": "0.1，十分之一",
       "0": "1 颗珠子",
       "1": "一串 10",
       "2": "一块 100",
@@ -70,21 +71,39 @@ export function renderElevator(app, { goHome, onDone } = {}) {
         cube.append(face);
       }
       beads.append(cube);
+    } else if (exp === 4) {
+      const row = el("div", { class: "bead-myriad", title: "10 个一千就是一万" });
+      for (let i = 0; i < 10; i++) row.append(el("div", { class: "bead-thousand" }));
+      beads.append(row, el("div", { class: "bead-million-caption" }, "10 个一千 = 10,000"));
+    } else if (exp === 5) {
+      const grid = el("div", { class: "bead-million" });
+      for (let i = 0; i < 100; i++) grid.append(el("div", { class: "bead-k" }));
+      beads.append(grid, el("div", { class: "bead-million-caption" }, "100 个一千 = 100,000"));
     } else {
-      const n = Math.min(6, exp - 2);
-      for (let i = 0; i < n; i++) beads.append(el("div", { class: "bead-thousand" }));
+      const grid = el("div", { class: "bead-million", "aria-label": "一百万" });
+      for (let i = 0; i < 100; i++) grid.append(el("div", { class: "bead-wan" }));
+      beads.append(grid, el("div", { class: "bead-million-caption" }, "100 个一万 = 1,000,000"));
     }
   }
   render();
 
   btns.querySelector(".up").addEventListener("click", () => {
     if (exp >= maxE) return;
+    userDrove = true;
     exp += 1; sfx.tap(); render(); maybeAsk();
   });
   btns.querySelector(".dn").addEventListener("click", () => {
     if (exp <= minE) return;
+    userDrove = true;
     exp -= 1; sfx.tap(); render();
   });
+
+  // Already moving: slowly climb the powers of ten until the child takes over.
+  const auto = setInterval(() => {
+    if (userDrove || asked || exp >= 3) return;
+    exp += 1;
+    render();
+  }, 2200);
 
   function maybeAsk() {
     if (asked) return;
@@ -97,9 +116,22 @@ export function renderElevator(app, { goHome, onDone } = {}) {
         { label: "10 次" },
       ], (c) => {
         store.recordAnswer("elevator", !!c.ok);
-        box.remove();
-        talk(c.ok ? "对。1，10，100，1000，三次。" : "1 乘 10 是 10，再乘 10 是 100，再乘 10 是 1000。三次。");
-        afterReveal("elevator", () => finishMode(onDone, goHome));
+        markAnswer(box, c, !!c.ok);
+        const line = c.ok ? "对。1，10，100，1000，三次。" : "1 乘 10 是 10，再乘 10 是 100，再乘 10 是 1000。三次。";
+        talk(line);
+        setTimeout(() => {
+          box.remove();
+          afterReveal("elevator", () => offerContinue(s, {
+            title: c.ok ? "对了" : "是 3 次",
+            body: line,
+            tone: c.ok ? "ok" : "no",
+            goHome,
+            actions: [
+              { label: "再乘下去", kind: "ok", onClick: () => { asked = false; } },
+              { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+            ],
+          }));
+        }, 900);
       }, { dock });
       s.append(box);
       talk("从 1 到 1000，按了几次乘 10？");
@@ -115,14 +147,27 @@ export function renderElevator(app, { goHome, onDone } = {}) {
         const ok = height * 100 < 500;
         store.recordAnswer("elevator", ok && c.label.startsWith("一座"));
         box.remove();
-        talk("你的身高乘 100，大约是 " + formatNumber(Math.round(height * 100)) + " 米，接近一座小山。");
-        afterReveal("elevator", () => finishMode(onDone, goHome));
+        const line = "你的身高乘 100，大约是 " + formatNumber(Math.round(height * 100)) + " 米，接近一座小山。";
+        talk(line);
+        setTimeout(() => {
+          box.remove();
+          afterReveal("elevator", () => offerContinue(s, {
+            title: "乘完 100",
+            body: line,
+            tone: "info",
+            goHome,
+            actions: [
+              { label: "再乘下去", kind: "ok", onClick: () => { asked = false; } },
+            ],
+          }));
+        }, 900);
       }, { dock });
       s.append(box);
     }
   }
 
-  talk("这是蒙氏金珠的想法。1 颗珠子，乘 10 变成一串，再乘 10 变成一块 100。");
+  talk("这是蒙氏金珠的想法。1 颗珠子，乘 10 变成一串，再乘 10 变成一块 100。珠子会自己变大，你也可以按。");
+  s._cleanup = () => clearInterval(auto);
   app.replaceChildren(s);
   store.markModePlayed("elevator");
 }

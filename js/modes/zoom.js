@@ -1,52 +1,47 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, finishMode } from "../ui.js";
-import { WORLD_LAYERS, DEFAULT_PROFILE } from "../data.js";
+import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer } from "../ui.js";
+import { DEFAULT_PROFILE } from "../data.js";
 import { log10, pow10, clamp, formatNumber } from "../geo.js";
 import { drawGlobe, drawMoon, drawSun, drawMountainPair } from "../art.js";
+import { renderFlight } from "./flight.js";
+import { renderHike } from "./hike.js";
+import { renderRace } from "./race.js";
+import { renderCosmos } from "./cosmos.js";
+import {
+  resolveScaleStops, nearestScaleStop, prettyScaleLine, formatScaleMetres,
+  SCALE_WAYSTATIONS, PLANCK_LENGTH_M, OBSERVABLE_UNIVERSE_DIAMETER_M,
+} from "../scale-data.js";
 
-function layersResolved() {
-  const p = store.get().profile;
-  const hikes = store.get().hikes;
-  const tallest = hikes.reduce((a, h) => Math.max(a, h.peakM || 0), 0);
-  return WORLD_LAYERS.filter((l) => !l.advanced || store.cosmosUnlocked()).map((l) => {
-    const copy = { ...l };
-    if (l.id === "me") {
-      copy.metres = p.heightM;
-      const assumedH = Math.abs((p.heightM ?? 0) - DEFAULT_PROFILE.heightM) < 1e-6;
-      copy.blurb = "大约 " + p.heightM.toFixed(2) + " 米。这是现在的身高" + (assumedH ? "（假设）" : "") + "。";
-    }
-    if (l.id === "steps") {
-      copy.metres = p.strideM * 100;
-      const assumedS = Math.abs((p.strideM ?? 0) - DEFAULT_PROFILE.strideM) < 1e-6;
-      copy.blurb = "用现在的步长走 100 步，大约 " + Math.round(p.strideM * 100) + " 米" + (assumedS ? "（假设）" : "") + "。";
-    }
-    if (l.id === "mountain") copy.metres = Math.max(20, tallest);
-    if (l.id === "city") {
-      copy.metres = p.cityAirportKm * 1000;
-      copy.blurb = zoomCityBlurb(p.cityAirportKm);
-    }
-    return copy;
-  }).sort((a, b) => a.metres - b.metres);
+
+function mountainVisited(id) {
+  return id === "mountain" || id === "sheshan" || id === "huangshan" || id === "fuji";
 }
 
 export function renderZoom(app, { goHome, onDone } = {}) {
   const s = screen();
   s.classList.add("mode-zoom");
-  const layers = layersResolved();
-  const minL = log10(layers[0].metres * 0.3);
-  const maxL = log10(layers[layers.length - 1].metres * 3);
-  // Start at "me"
-  const me = layers.find((l) => l.id === "me") || layers[4];
+  const stops = resolveScaleStops(store.get().profile, store.get().hikes);
+  const minL = log10(PLANCK_LENGTH_M);
+  const maxL = log10(OBSERVABLE_UNIVERSE_DIAMETER_M * 1.15);
+  const me = stops.find((l) => l.id === "me") || stops[0];
   let logS = log10(me.metres);
   let target = logS;
   const level = store.level("zoom");
   let asked = false;
   const visited = new Set(["me"]);
+  let auto = true;
+  let holdPause = false;
+  let resumeAt = 0;
+  let cruiseDir = 1;
+  let dwellLeft = 1.6;
+  let lastDwellId = "me";
+  let lastSpokenId = "";
+  let pointers = 0;
 
-  const canvas = el("canvas", { class: "fill", "aria-label": "从我出发的大缩放" });
+  const canvas = el("canvas", { class: "fill", "aria-label": "从普朗克长度到宇宙的尺度之旅" });
   s.append(canvas);
-  s.append(topbar({ title: "从我出发", sub: "两指捏开放大，捏拢缩小", onBack: goHome }));
+  s.append(topbar({ title: "尺度之旅", sub: "自己会走。也可以捏，或跳到熟悉的一站", onBack: goHome }));
   const readout = el("div", { class: "zoom-readout" },
     el("div", { class: "pow", id: "pow" }, ""),
     el("div", { class: "name", id: "lname" }, ""),
@@ -59,34 +54,129 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   );
   s.append(stepper);
 
-  const trailApi = createZoomL1Trail({
-    onGuide: (next) => {
-      const layer = layers.find((l) => l.id === next);
-      if (!layer) return;
-      target = clamp(log10(layer.metres), minL, maxL);
-      visited.add(next);
-      sfx.tick();
-      talk("来看" + zoomL1Label(next) + "。");
-      maybeAsk();
-    },
+  const ways = el("div", { class: "zoom-ways", "aria-label": "熟悉的站点" });
+  const wayBtns = {};
+  for (const w of SCALE_WAYSTATIONS) {
+    const b = el("button", { "data-id": w.id }, w.label);
+    b.addEventListener("click", () => jumpTo(w.id, true));
+    ways.append(b);
+    wayBtns[w.id] = b;
+  }
+  s.append(ways);
+
+  const cruiseBox = el("div", { class: "zoom-cruise" });
+  const pauseBtn = el("button", { "aria-label": "暂停或继续" }, "暂停");
+  const fullBtn = el("button", {}, "从头走");
+  pauseBtn.addEventListener("click", () => toggleAuto());
+  fullBtn.addEventListener("click", () => {
+    jumpTo("planck", false);
+    cruiseDir = 1;
+    auto = true;
+    holdPause = false;
+    dwellLeft = 2.5;
+    pauseBtn.textContent = "暂停";
+    talk("从最小的普朗克长度出发，一路走到宇宙。");
+    sfx.whoosh();
   });
-  const trail = trailApi.trail;
-  s.append(trail);
-  let trailSig = "";
+  cruiseBox.append(pauseBtn, fullBtn);
+  s.append(cruiseBox);
+
+  const linger = el("div", { class: "zoom-cruise", style: { right: "auto", left: "16px", top: "auto", bottom: "120px", display: "none" } });
+  s.append(linger);
+
+  function toggleAuto() {
+    auto = !auto;
+    holdPause = false;
+    pauseBtn.textContent = auto ? "暂停" : "继续走";
+    if (auto) talk("好，继续走。");
+    else talk("先停在这里。");
+  }
+
+  function jumpTo(id, speak) {
+    const stop = stops.find((l) => l.id === id);
+    if (!stop) return;
+    target = clamp(log10(stop.metres), minL, maxL);
+    visited.add(id);
+    if (mountainVisited(id)) visited.add("mountain");
+    lastDwellId = id;
+    dwellLeft = stop.familiar ? 7 : 4;
+    auto = true;
+    holdPause = false;
+    pauseBtn.textContent = "暂停";
+    sfx.tick();
+    if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
+    maybeAsk();
+  }
 
   function nearest(ls) {
     const metres = pow10(ls);
-    let best = layers[0], bestD = Infinity;
-    for (const l of layers) {
-      const d = Math.abs(log10(l.metres) - ls);
-      if (d < bestD) { bestD = d; best = l; }
-    }
-    return { layer: best, metres, close: bestD < 0.25 };
+    const { stop, close } = nearestScaleStop(stops, metres);
+    return { layer: stop, metres, close };
   }
 
-  let running = true, raf = 0;
-  const draw = () => {
+  function speakStop(stop) {
+    if (!stop || lastSpokenId === stop.id) return;
+    lastSpokenId = stop.id;
+    const line = (stop.name + "。" + (stop.correlate || stop.blurb)).slice(0, 80);
+    talk(line);
+  }
+
+  function showLinger(stop) {
+    linger.replaceChildren();
+    if (!stop || !stop.lingerMode) {
+      linger.style.display = "none";
+      return;
+    }
+    const label = {
+      flight: stop.id === "paris" ? "飞去巴黎" : "飞去东京",
+      hike: "爬这座山",
+      race: "比一比速度",
+      cosmos: "看光要走多久",
+    }[stop.lingerMode] || "停一停";
+    const btn = el("button", {}, label);
+    btn.addEventListener("click", () => {
+      auto = false;
+      if (stop.lingerMode === "flight") {
+        renderFlight(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), tripId: stop.tripId || "pvg-hnd" });
+      } else if (stop.lingerMode === "hike") {
+        renderHike(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), hikeId: stop.hikeId || "sheshan" });
+      } else if (stop.lingerMode === "race") {
+        renderRace(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), trackId: "tokyo", allRacers: true });
+      } else if (stop.lingerMode === "cosmos") {
+        renderCosmos(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }) });
+      }
+    });
+    linger.append(btn);
+    linger.style.display = "flex";
+  }
+
+  let running = true, raf = 0, lastTs = 0;
+  const draw = (now) => {
     if (!running) return;
+    const ts = now || performance.now();
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
+    lastTs = ts;
+
+    const userIdle = performance.now() > resumeAt && !holdPause && pointers < 2;
+    if (auto && userIdle && !asked) {
+      if (dwellLeft > 0) dwellLeft -= dt;
+      else {
+        target = clamp(target + cruiseDir * 0.12 * dt, minL, maxL);
+        if (target >= maxL - 0.01 && cruiseDir === 1) {
+          cruiseDir = -1;
+          dwellLeft = 8;
+          talk("已经到了能看到的宇宙这么大。现在往回走，一直走到最小。");
+        } else if (target <= minL + 0.01 && cruiseDir === -1) {
+          cruiseDir = 1;
+          dwellLeft = 8;
+          auto = false;
+          pauseBtn.textContent = "继续走";
+          talk("这是最小的普朗克长度。还可以再往外走一遍。");
+        }
+      }
+    }
+
     logS += (target - logS) * 0.18;
     const { ctx, w, h } = fitCanvas(canvas);
     ctx.fillStyle = "#071018";
@@ -98,26 +188,27 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const cy = hero.cy;
     const { layer, metres, close } = nearest(logS);
     visited.add(layer.id);
-    if (level <= 1 && !asked) {
-      const sig = [...visited].sort().join(",") + (asked ? "|asked" : "");
-      if (sig !== trailSig) {
-        trailSig = sig;
-        refreshTrail();
-      }
+    if (mountainVisited(layer.id)) visited.add("mountain");
+
+    if (close && layer.id !== lastDwellId) {
+      lastDwellId = layer.id;
+      dwellLeft = layer.familiar ? 7 : (layer.generated ? 2.6 : 5);
+      speakStop(layer);
+      showLinger(layer);
+    }
+    for (const [id, b] of Object.entries(wayBtns)) {
+      b.classList.toggle("here", layer.id === id || (id === "sheshan" && mountainVisited(layer.id) && layer.id !== "tokyo"));
     }
 
-    // Concentric decade rings, capped so the outer circle stays clear of chrome.
     const cap = zoomScaleCap(w, h, { hasPrompt, landscape });
     const decade0 = Math.floor(logS) - 3;
     let usedCap = false;
     for (let d = decade0; d <= decade0 + 7; d++) {
-      const rel = d - logS; // 0 means this decade is the current scale
+      const rel = d - logS;
       let rad = 40 * pow10(rel + 2);
       if (rad < 8) continue;
       if (rad > Math.max(w, h)) continue;
       if (rad > cap) {
-        // Only shrink rings that would have been drawn, so portrait does not
-        // gain a new outer ring from a previously skipped huge decade.
         if (usedCap || cap < 8) continue;
         rad = cap;
         usedCap = true;
@@ -136,27 +227,25 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       }
     }
 
-    // Layer beads on the log axis. In landscape with a side quiz, keep the
-    // full usable slider clear of the question panel.
     const axis = zoomAxisLayout(w, h, { hasPrompt, landscape });
     const axisY = axis.axisY;
     const axisSpan = Math.max(1, axis.right - axis.left);
     ctx.strokeStyle = "rgba(245,200,76,0.5)";
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(axis.left, axisY); ctx.lineTo(axis.right, axisY); ctx.stroke();
-    for (const l of layers) {
+    for (const l of stops) {
+      if (l.generated) continue;
       const x = axis.left + ((log10(l.metres) - minL) / (maxL - minL)) * axisSpan;
       if (x < axis.left - 2 || x > axis.right + 2) continue;
       ctx.beginPath();
-      ctx.fillStyle = l.id === layer.id ? "#f5c84c" : "rgba(244,239,228,0.45)";
-      ctx.arc(x, axisY, l.id === layer.id ? 8 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = l.id === layer.id ? "#f5c84c" : (l.familiar ? "rgba(244,239,228,0.7)" : "rgba(244,239,228,0.35)");
+      ctx.arc(x, axisY, l.id === layer.id ? 8 : (l.familiar ? 5 : 3), 0, Math.PI * 2);
       ctx.fill();
     }
     const nx = axis.left + ((logS - minL) / (maxL - minL)) * axisSpan;
     ctx.fillStyle = "#5ce1e6";
     ctx.beginPath(); ctx.arc(nx, axisY, 7, 0, Math.PI * 2); ctx.fill();
 
-    // Hero object
     drawHero(ctx, cx, cy, layer, close);
 
     const powEl = readout.querySelector("#pow");
@@ -165,7 +254,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const shown = close ? layer.metres : metres;
     powEl.textContent = prettyScale(shown);
     nameEl.textContent = layer.name + (close ? "" : " 附近");
-    blurbEl.textContent = layer.blurb;
+    const extra = layer.assumption ? "" : "";
+    blurbEl.textContent = (layer.correlate || layer.blurb || "") + extra;
 
     raf = requestAnimationFrame(draw);
   };
@@ -173,19 +263,31 @@ export function renderZoom(app, { goHome, onDone } = {}) {
 
   function bump(deltaLog) {
     target = clamp(target + deltaLog, minL, maxL);
+    auto = true;
+    resumeAt = performance.now() + 2600;
+    dwellLeft = 0;
     sfx.tick();
     maybeAsk();
   }
   const unPinch = bindPinch(canvas, (factor) => {
-    // pinch out (factor>1) zooms OUT to larger scales (Powers of Ten convention).
+    pointers = 2;
+    resumeAt = performance.now() + 2600;
     bump(log10(factor) * 1.15);
   });
   stepper.querySelector(".out").addEventListener("click", () => bump(0.55));
   stepper.querySelector(".in").addEventListener("click", () => bump(-0.55));
 
-  function refreshTrail() {
-    trailApi.refresh({ visited, asked, level });
-  }
+  canvas.addEventListener("pointerdown", () => {
+    pointers += 1;
+    holdPause = true;
+  });
+  const release = () => {
+    pointers = Math.max(0, pointers - 1);
+    holdPause = false;
+    resumeAt = performance.now() + 1600;
+  };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
 
   function maybeAsk() {
     if (asked) return;
@@ -194,15 +296,29 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     else if (level >= 3 && visited.has("tokyo") && visited.has("paris")) askTimes();
   }
 
+  function afterZoomQuestion(ok, line) {
+    afterReveal("zoom", () => offerContinue(s, {
+      title: ok ? "对了" : "看一下",
+      body: line + "旅程还会继续走。",
+      tone: ok ? "ok" : "no",
+      goHome,
+      actions: [
+        { label: "继续走", kind: "ok", onClick: () => { asked = false; auto = true; } },
+        { label: "从头走", onClick: () => { asked = false; jumpTo("planck", true); } },
+      ],
+    }));
+  }
+
   function askOrder() {
     asked = true;
-    refreshTrail();
+    auto = false;
     const opts = zoomL1OrderChoices();
     const box = promptBox("从小到大，哪一行是对的？", "听一听，再点那一行图画。", opts, (c) => {
       store.recordAnswer("zoom", !!c.ok);
-      box.remove();
-      talk(c.ok ? "对。每一层都用上一层的东西来量。" : "正确的顺序是：蚂蚁，我，山，去东京。");
-      afterReveal("zoom", () => finishMode(onDone, goHome));
+      markAnswer(box, c, !!c.ok);
+      const line = c.ok ? "对。每一层都用上一层的东西来量。" : "正确的顺序是：蚂蚁，我，山，去东京。";
+      talk(line);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
     });
     s.append(box);
     talk(zoomL1OrderTalk(opts));
@@ -210,61 +326,53 @@ export function renderZoom(app, { goHome, onDone } = {}) {
 
   function askDecades() {
     asked = true;
+    auto = false;
     const box = promptBox("从你的身高到一座山，大约差几个 10 倍？", "数一数中间经过了几层。", [
       { label: "大约 2 个 10 倍", ok: true, icon: "⛰️" },
       { label: "大约 10 个 10 倍" },
       { label: "差不多一样高" },
     ], (c) => {
       store.recordAnswer("zoom", !!c.ok);
-      box.remove();
-      talk(c.ok ? "对。1 米到 10 米再到大约 100 米，两个 10 倍，就到一座小山。" : "从大约 1 米到大约 100 米，是两个 10 倍。");
-      afterReveal("zoom", () => finishMode(onDone, goHome));
+      markAnswer(box, c, !!c.ok);
+      const line = c.ok ? "对。1 米到 10 米再到大约 100 米，两个 10 倍，就到一座小山。" : "从大约 1 米到大约 100 米，是两个 10 倍。";
+      talk(line);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
     });
     s.append(box);
-    // Visible done path: the question itself, plus 下一步 after the reveal.
     talk("从你的身高到一座山，大约差几个 10 倍？");
   }
 
   function askTimes() {
     asked = true;
+    auto = false;
     const box = promptBox("去巴黎比去东京远几个 10 倍？", "差大约 5 倍，还不到一个 10 倍。", [
       { label: "不到一个 10 倍", ok: true },
       { label: "大约 10 倍" },
       { label: "大约 100 倍" },
     ], (c) => {
       store.recordAnswer("zoom", !!c.ok);
-      box.remove();
-      talk(c.ok ? "对。大约 5 倍，还不到一个 10 倍。" : "大约 5 倍，还不到一个 10 倍。");
-      afterReveal("zoom", () => finishMode(onDone, goHome));
+      markAnswer(box, c, !!c.ok);
+      const line = c.ok ? "对。大约 5 倍，还不到一个 10 倍。" : "大约 5 倍，还不到一个 10 倍。";
+      talk(line);
+      setTimeout(() => { box.remove(); afterZoomQuestion(!!c.ok, line); }, 900);
     });
     s.append(box);
     talk("去巴黎比去东京，差几个 10 倍？");
   }
 
-  talk("从你的身高开始。两指张开，往外放大；捏拢，往里缩小。");
+  talk("从你的身高开始，尺度会自己往外走。两指也可以捏。想看最小，就点从头走。");
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); unPinch(); };
   app.replaceChildren(s);
   store.markModePlayed("zoom");
 }
 
 export function prettyMetres(m) {
-  if (m >= 1e16) return (m / 9.46073e15).toFixed(2) + " 光年";
-  if (m >= 1e9) return (m / 1e9).toFixed(2) + " 百万公里";
-  if (m >= 1000) return formatNumber(m / 1000, m >= 100000 ? 0 : 1) + " 公里";
-  if (m >= 1) return m.toFixed(m >= 10 ? 0 : 2) + " 米";
-  if (m >= 1e-3) return (m * 1000).toFixed(m >= 0.01 ? 1 : 2) + " 毫米";
-  if (m >= 1e-6) return (m * 1e6).toFixed(1) + " 微米";
-  return m.toExponential(1).replace("e", " ×10^") + " 米";
+  return formatScaleMetres(m);
 }
 
 /** Kid-facing scale readout. Never show "10 的 0.2 次方". */
 export function prettyScale(m) {
-  const human = prettyMetres(m);
-  const e = Math.log10(Math.max(1e-12, m));
-  const n = Math.round(e);
-  if (Math.abs(e - n) > 0.2) return "现在大约 " + human;
-  if (n === 0) return "现在大约 " + human + "（靠近 1 米）";
-  return "现在大约 " + human + "（10 的 " + n + " 次方 米）";
+  return prettyScaleLine(m);
 }
 
 /** City-scale figure is an editable assumption until a parent types a real distance. */
@@ -676,6 +784,30 @@ function drawHero(ctx, cx, cy, layer, close) {
     ctx.font = "90px -apple-system";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("👣", 0, 0);
+  } else if (id === "sheshan" || id === "huangshan" || id === "fuji" || id === "everest") {
+    drawMountainPair(ctx, 0, 30, 110, { snow: id !== "sheshan", color: "#2a6a55" });
+  } else if (id === "planck") {
+    ctx.fillStyle = "#f5c84c";
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(245,200,76,0.5)"; ctx.lineWidth = 2;
+    for (let i = 1; i <= 4; i++) { ctx.beginPath(); ctx.arc(0, 0, 10 + i * 14, 0, Math.PI * 2); ctx.stroke(); }
+  } else if (id === "universe" || id === "milkyway" || id === "andromeda" || id === "laniakea" || id === "filament") {
+    for (let i = 0; i < 40; i++) {
+      const a = i * 1.7, r = 10 + (i * 17) % 80;
+      ctx.fillStyle = "rgba(244,239,228," + (0.3 + (i % 5) * 0.12) + ")";
+      ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r * 0.45, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(92,225,230,0.35)";
+    ctx.beginPath(); ctx.ellipse(0, 0, 90, 36, 0.4, 0, Math.PI * 2); ctx.stroke();
+  } else if (id === "proton" || id === "nucleus" || id === "quark") {
+    ctx.fillStyle = id === "quark" ? "#ff7a59" : "#f5c84c";
+    ctx.beginPath(); ctx.arc(0, 0, id === "quark" ? 8 : 16, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#5ce1e6"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.font = "100px -apple-system";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(layer.emoji || "🔹", 0, 0);
   }
   ctx.restore();
 }

@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, fitCanvas, bindDrag, afterReveal, promptBox, finishMode } from "../ui.js";
+import { el, screen, topbar, fitCanvas, bindDrag, afterReveal, promptBox, offerContinue } from "../ui.js";
 import { clamp, formatNumber } from "../geo.js";
 import { drawPlane, drawWater } from "../art.js";
 import { routeDistanceKm } from "../data.js";
@@ -218,7 +218,7 @@ export function renderNumberline(app, { goHome, onDone } = {}) {
     const btnRow = el("div", { class: "choices" },
       el("button", { class: "choice ok", onClick: () => {
         hint.remove();
-        afterReveal("numberline", () => finishMode(onDone, goHome));
+        afterReveal("numberline", () => offerContinue(s, { title: "再放一个？", body: "还可以再玩一条航线。", tone: "ok", goHome, actions: [{ label: "再玩一次", kind: "ok", onClick: () => renderNumberline(app, { goHome, onDone }) }] }));
       } }, "下一步"),
     );
     hint.append(btnRow);

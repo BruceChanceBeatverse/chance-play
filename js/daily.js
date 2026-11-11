@@ -1,18 +1,16 @@
 import { store } from "./store.js";
 import { talk, unlockAudio, sfx, stopTalk } from "./audio.js";
-import { el, screen, toast, fitCanvas } from "./ui.js";
+import { el, screen, toast, fitCanvas, bindCardFlip } from "./ui.js";
 import { fillSky, drawSoftClouds, paintCardArt } from "./art.js";
 import { TOMORROW_QUESTIONS, SESSION_MINUTES, SESSION_WINDDOWN_MIN } from "./data.js";
 
 let watchTimer = 0;
 
-export function startSessionWatch(goEnd) {
+export function startSessionWatch(_goEnd) {
   stopSessionWatch();
-  watchTimer = setInterval(() => {
-    const st = store.ensureToday();
-    if (st.endedToday) return;
-    if ((st.todayMinutes || 0) >= SESSION_MINUTES) goEnd();
-  }, 10000);
+  // Intentionally no auto-end. Mid-activity "今天就到这儿" was kicking the
+  // child out of a Paris flight. The scale journey is meant to be played in
+  // one sitting, longer than the old 15-minute cap.
 }
 
 export function stopSessionWatch() {
@@ -21,8 +19,8 @@ export function stopSessionWatch() {
 }
 
 export function shouldWindDown() {
-  const st = store.ensureToday();
-  return !st.endedToday && (st.todayMinutes || 0) >= SESSION_WINDDOWN_MIN;
+  // Never auto-wind-down mid-play or after one activity.
+  return false;
 }
 
 export function renderSessionEnd(app, go) {
@@ -124,11 +122,21 @@ export function renderCards(app, go) {
   if (!cards.length) bag.append(el("p", { text: "还没有卡片。去飞一趟，也许会掉下来。" }));
   for (const c of cards) {
     const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
-    const card = el("div", { class: "card-drop", style: { width: "100%", aspectRatio: "4/3", animation: "none" } },
+    const front = el("div", { class: "card-face card-front" },
       art,
       el("div", { class: "t" }, c.title),
       el("div", { class: "v" }, c.value),
     );
+    const back = el("div", { class: "card-face card-back" },
+      el("div", { class: "k" }, "翻过来了"),
+      el("div", { class: "t" }, c.title),
+      el("div", { class: "v" }, c.value),
+      el("p", { text: "这是你世界里的一个数。" }),
+    );
+    const card = el("div", { class: "card-drop flippable", style: { width: "100%", aspectRatio: "4/3", animation: "none" } },
+      el("div", { class: "card-inner" }, front, back),
+    );
+    bindCardFlip(card);
     bag.append(card);
     requestAnimationFrame(() => paintCardArt(art, c));
   }

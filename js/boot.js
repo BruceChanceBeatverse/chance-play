@@ -22,21 +22,12 @@ function go(name, arg) {
   const app = root();
   const cleanupOf = (node) => { currentCleanup = node && node._cleanup; };
 
-  const goHome = () => {
-    if (shouldWindDown() && !store.get().endedToday) return go("end");
-    go("home");
-  };
-  const afterMode = () => {
-    if (shouldWindDown() && !store.get().endedToday) go("end");
-    else go("home");
-  };
+  const goHome = () => go("home");
+  const afterMode = () => go("home");
 
   if (name === "welcome") { renderWelcome(app, go); return; }
   if (name === "firstplay") { renderFirstPlay(app, go); cleanupOf(app.firstChild); return; }
   if (name === "home") {
-    // Wind-down must also run when something calls go("home") directly,
-    // not only when a mode's goHome callback is used.
-    if (shouldWindDown() && !store.get().endedToday) { go("end"); return; }
     renderHome(app, go); cleanupOf(app.firstChild); return;
   }
   if (name === "parent") { renderParent(app, go); return; }

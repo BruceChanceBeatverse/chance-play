@@ -1,7 +1,7 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
 import {
-  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, finishMode, playHint,
+  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint,
 } from "../ui.js";
 import {
   airportByCode, routeDistanceKm,
@@ -162,12 +162,14 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     drawPlane(ctx, here.x, here.y, ang, 1.45);
 
     const m = metrics(progress, km);
-    const maskRemain = asked && !!s.querySelector(".prompt") && (askArmed === "half" || askArmed === "quarters");
+    const qOpen = asked && !!s.querySelector(".prompt");
+    const maskRemain = qOpen && (askArmed === "half" || askArmed === "quarters");
+    const maskTemp = qOpen && askArmed === "temp";
     board.update([
       formatKm(m.flown),
       flightRemainHudValue(m.remainH, { mask: maskRemain }),
       m.alt.toFixed(1) + " 公里",
-      formatTemp(m.temp),
+      maskTemp ? "？" : formatTemp(m.temp),
     ]);
     raf = requestAnimationFrame(draw);
   };
@@ -191,7 +193,22 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     up() { dragging = false; maybeAsk(); },
   });
 
+  function afterFlight(host) {
+    if (firstPlay) { onDone?.(); return; }
+    offerContinue(host, {
+      title: "还想飞吗？",
+      body: "可以再飞一趟，或去尺度之旅。",
+      tone: "ok",
+      goHome,
+      actions: [
+        { label: "再飞一次", kind: "ok", onClick: () => renderFlight(app, { goHome, onDone, tripId, firstPlay: false }) },
+        { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+      ],
+    });
+  }
+
   function maybeAsk() {
+
     if (asked || !askArmed) return;
     if (askArmed === "half" && progress >= 0.48) fireHalf();
     if (askArmed === "temp" && progress >= 0.2) fireTemp();
@@ -205,7 +222,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     // "还要多久" matches the correct button (fires at >= 0.48, not exactly 0.5).
     const remain = metrics(progress, km).remainH;
     const choices = shuffle(halfTimeChoiceList(progress, km));
-    const box = promptBox("飞到一半，还要飞多久？", "先选一个，再看飞机上的数字。", choices, (c) => {
+    const box = promptBox("飞到一半，还要飞多久？", "先选一个。先不要看剩余时间。", choices, (c) => {
       const correct = !!c.ok;
       store.recordAnswer("flight", correct);
       store.addPrediction({ mode: "flight", guessed: c.value, actual: remain, ratio: c.value / remain });
@@ -214,7 +231,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       if (!firstPlay) toast(correct ? "正好是一半的时间" : "再看一眼：是 " + formatHours(remain));
       if (firstPlay) {
         // Big picture first (plane → sea → Earth → Moon), then a possible world card, then "下一站".
-        startZoomOut(s, { from, to, km, goNext: () => afterReveal("flight", () => onDone?.()) });
+        startZoomOut(s, { from, to, km, goNext: () => afterReveal("flight", () => afterFlight(s)) });
       } else {
         afterReveal("flight", () => maybeCompare());
       }
@@ -226,7 +243,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
   function fireTemp() {
     asked = true;
     frozen = true;
-    const box = promptBox("飞得更高，外面会更冷还是更暖？", "先猜，再看右下角的气温。", [
+    const box = promptBox("飞得更高，外面会更冷还是更暖？", "先猜。先不要看外面气温。", [
       { label: "更冷", ok: true },
       { label: "更暖", ok: false },
     ], (c) => {
@@ -235,7 +252,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       talk(c.ok
         ? "对了。每升高 1 公里，外面大约会凉 6.5 度。"
         : "其实会更冷。每升高 1 公里，外面大约凉 6.5 度。");
-      afterReveal("flight", () => onDone?.());
+      afterReveal("flight", () => afterFlight(s));
     });
     s.append(box);
     talk("飞得更高，外面会更冷还是更暖？");
@@ -251,7 +268,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       store.addPrediction({ mode: "flight", guessed: c.value, actual: r, ratio: c.value / r });
       box.remove();
       talk(c.ok ? "对了。剩下四分之三的路。" : "剩下四分之三，所以时间也大约是全程的四分之三。");
-      afterReveal("flight", () => onDone?.());
+      afterReveal("flight", () => afterFlight(s));
     });
     s.append(box);
     talk("飞了四分之一，还要多久？");
@@ -281,7 +298,7 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
       store.addPrediction({ mode: "flight", guessed: c.value, actual: ratio, ratio: c.value / ratio });
       box.remove();
       talk("去巴黎大约是去东京的 " + ratio.toFixed(1) + " 倍。");
-      afterReveal("flight", () => onDone?.());
+      afterReveal("flight", () => afterFlight(s));
     });
     s.append(box);
     talk("去巴黎比去东京远几倍？");

@@ -1,7 +1,7 @@
 import { store } from "./store.js";
 import { unlockAudio, talk, sfx, playParentTask } from "./audio.js";
-import { el, screen, modeGlyph, starfield, secretParentHotspot } from "./ui.js";
-import { MODE_META, WEEKDAY_THEME, TASK_BANK, SESSION_MINUTES, SESSION_WINDDOWN_MIN } from "./data.js";
+import { el, screen, modeGlyph, starfield, secretParentHotspot, toast } from "./ui.js";
+import { MODE_META, WEEKDAY_THEME, TASK_BANK } from "./data.js";
 
 export function renderHome(app, go) {
   store.ensureToday();
@@ -12,7 +12,7 @@ export function renderHome(app, go) {
   const sky = el("canvas", { class: "home-sky fill", "aria-hidden": "true" });
   const ui = el("div", { class: "home-ui" });
   const hello = el("div", { class: "hello", html: '你好，<em>Chance</em>' });
-  const sub = el("div", { class: "hello-sub" }, theme.title + (st.endedToday ? " · 今天已经收过尾了" : ""));
+  const sub = el("div", { class: "hello-sub" }, theme.title);
   ui.append(hello, sub);
 
   const todayTask = pickTodayTask(day, st);
@@ -21,7 +21,7 @@ export function renderHome(app, go) {
       el("div", { class: "big" }, todayTask.zh),
       st.parentReplies.length ? el("div", { style: { color: "var(--mint)", marginTop: "6px" } }, "爸爸回过你一句") : null,
     ),
-    el("button", { class: "go", onClick: () => startToday(go, todayTask) }, st.endedToday ? "再看看" : "开始"),
+    el("button", { class: "go", onClick: () => startToday(go, todayTask) }, "开始"),
   );
   ui.append(todayCard);
 
@@ -33,7 +33,10 @@ export function renderHome(app, go) {
       onClick: () => {
         unlockAudio(); sfx.tap();
         if (locked) {
-          talk("这张地图还没打开。先在飞行地图和速度大比拼里玩到第三级。");
+          const msg = "这张地图还没打开。先在飞行地图和速度大比拼里玩到第三级。也可以先去尺度之旅，一路能走到宇宙。";
+          talk(msg);
+          toast(msg, 4200);
+          showLockExplain(s, msg);
           return;
         }
         go("mode", m.id);
@@ -48,15 +51,17 @@ export function renderHome(app, go) {
   }
   ui.append(grid);
 
-  const leftMin = Math.max(0, SESSION_MINUTES - (st.todayMinutes || 0));
   const foot = el("div", { class: "home-foot" },
     el("button", { class: "pill", onClick: () => go("cards") }, "🃏 我的世界卡  " + st.cards.length),
-    el("div", { class: "time-left" }, st.endedToday ? "今天已经结束" : "大约还剩 " + Math.ceil(leftMin) + " 分钟"),
+    el("div", { class: "time-left" }, "慢慢玩，走完尺度之旅"),
   );
-  const secret = el("div", { class: "pill", style: { width: "56px", justifyContent: "center", opacity: "0.25" }, "aria-label": "家长入口" }, "·");
-  secretParentHotspot(secret, () => go("parent"));
-  foot.append(secret);
   ui.append(foot);
+
+  // Adult-only entry: a quiet corner, not next to any "day is over" copy,
+  // and not a tempting extra pill in the footer.
+  const secret = el("div", { class: "parent-secret", "aria-label": "家长入口" });
+  secretParentHotspot(secret, () => go("parent"));
+  s.append(secret);
 
   s.append(sky, ui);
   const stop = starfield(sky);
@@ -91,8 +96,8 @@ function startToday(go, task) {
   playParentTask(task);
   const st = store.get();
   if (st.endedToday) {
-    go("mode", task.mode);
-    return;
+    // Old sessions may still have this flag; do not darken or shrink play.
+    store.patch({ endedToday: false });
   }
   if (store.weekdayShanghai() === 0) {
     go("teach");
@@ -104,4 +109,14 @@ function startToday(go, task) {
     return;
   }
   go("mode", task.mode);
+}
+
+function showLockExplain(host, msg) {
+  host.querySelectorAll(".lock-explain").forEach((n) => n.remove());
+  const box = el("div", { class: "lock-explain" },
+    el("h2", { text: "这张地图还没打开" }),
+    el("p", { text: msg }),
+    el("button", { class: "choice ok", onClick: () => box.remove() }, "好"),
+  );
+  host.append(box);
 }

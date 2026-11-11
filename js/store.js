@@ -59,6 +59,23 @@ function load() {
     if (!Array.isArray(merged.trips) || merged.trips.length === 0) merged.trips = base.trips;
     if (!Array.isArray(merged.racers) || merged.racers.length === 0) merged.racers = base.racers;
     if (!Array.isArray(merged.hikes) || merged.hikes.length === 0) merged.hikes = base.hikes;
+    else {
+      // Schematic sample mountains always take the current pack (official peaks,
+      // trail-foot start). Parent-imported real tracks (sample: false) are kept.
+      const byId = new Map(SAMPLE_HIKES.map((h) => [h.id, h]));
+      merged.hikes = merged.hikes.map((h) => {
+        const pack = byId.get(h.id);
+        if (pack && (h.sample !== false)) {
+          return { ...pack, points: pack.points.map((p) => ({ ...p })) };
+        }
+        return h;
+      });
+      for (const pack of SAMPLE_HIKES) {
+        if (!merged.hikes.some((h) => h.id === pack.id)) {
+          merged.hikes.push({ ...pack, points: pack.points.map((p) => ({ ...p })) });
+        }
+      }
+    }
     return merged;
   } catch {
     return fresh();

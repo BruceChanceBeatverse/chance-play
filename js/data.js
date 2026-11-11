@@ -218,7 +218,7 @@ export const SAMPLE_HIKES = [
     peakM: 99,
     color: "#7dffb3",
     // Schematic out-and-back, ~3.6 km, start near sea-level park.
-    points: makeHillProfile({ lengthKm: 3.6, peakM: 99, peakAt: 0.55, startM: 8, bumps: [[0.25, 40, 0.08]] }),
+    points: makeHillProfile({ lengthKm: 3.6, peakM: 99, peakAt: 0.55, startM: 0, bumps: [[0.25, 40, 0.08]] }),
   },
   {
     id: "huangshan",
@@ -226,7 +226,7 @@ export const SAMPLE_HIKES = [
     sample: true,
     peakM: 1864,
     color: "#ffd56a",
-    points: makeHillProfile({ lengthKm: 14, peakM: 1864, peakAt: 0.72, startM: 600, bumps: [[0.35, 1400, 0.1], [0.5, 1600, 0.08]] }),
+    points: makeHillProfile({ lengthKm: 18, peakM: 1864, peakAt: 0.75, startM: 0, bumps: [[0.35, 900, 0.1], [0.5, 1400, 0.08]] }),
   },
   {
     id: "fuji",
@@ -234,9 +234,9 @@ export const SAMPLE_HIKES = [
     sample: true,
     peakM: 3776,
     color: "#ff7a59",
-    // Yoshida trail is roughly 6–8 km with ~1,400 m gain from the 5th station
-    // (~2,300 m). Schematic only.
-    points: makeHillProfile({ lengthKm: 7.5, peakM: 3776, peakAt: 0.92, startM: 2300, bumps: [[0.4, 2800, 0.1]] }),
+    // Schematic from the trail foot (0 m), not the Yoshida 5th station (~2,300 m),
+    // so the figure at the start matches the elevation readout. Official peak 3776 m.
+    points: makeHillProfile({ lengthKm: 20, peakM: 3776, peakAt: 0.85, startM: 0, bumps: [[0.4, 1800, 0.1]] }),
   },
 ];
 
@@ -260,9 +260,22 @@ function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [] }) {
       const g = Math.exp(-((t - c) * (t - c)) / (2 * w * w));
       elev = Math.max(elev, startM + (h - startM) * g);
     }
-    // A little path roughness, deterministic.
-    elev += Math.sin(t * 37.7) * Math.min(8, peakM * 0.004);
+    // Tiny path roughness, but never let it move the official peak.
+    const nearPeak = Math.abs(t - peakAt) < 1 / n;
+    if (!nearPeak) elev += Math.sin(t * 37.7) * Math.min(3, peakM * 0.0006);
     pts.push({ distKm: dist, elevM: Math.max(0, elev) });
+  }
+  if (pts.length) {
+    pts[0].elevM = Math.max(0, startM);
+    let pi = 0, best = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const d = Math.abs(pts[i].distKm / Math.max(1e-9, lengthKm) - peakAt);
+      if (d < best) { best = d; pi = i; }
+    }
+    pts[pi].elevM = peakM;
+    for (let i = 0; i < pts.length; i++) {
+      if (i !== pi) pts[i].elevM = Math.min(pts[i].elevM, peakM - 0.51);
+    }
   }
   return pts;
 }
@@ -271,7 +284,7 @@ export const MODE_META = [
   { id: "flight", name: "我的飞行地图", nameEn: "My flight map", icon: "plane", featured: true, weekday: 1 },
   { id: "race", name: "速度大比拼", nameEn: "Speed race", icon: "race", featured: true, weekday: 2 },
   { id: "hike", name: "爬山剖面", nameEn: "Mountain profile", icon: "mountain", weekday: 3 },
-  { id: "zoom", name: "从我出发", nameEn: "Scale from me", icon: "zoom", weekday: 4 },
+  { id: "zoom", name: "尺度之旅", nameEn: "Scale journey", icon: "zoom", weekday: 4, featured: true },
   { id: "numberline", name: "数轴航线", nameEn: "Number-line route", icon: "axis", weekday: 5 },
   { id: "compare", name: "谁更大谁更快", nameEn: "Which is bigger", icon: "compare", weekday: 5 },
   { id: "elevator", name: "十倍电梯", nameEn: "Times-ten lift", icon: "lift", weekday: 4 },
@@ -387,6 +400,13 @@ export const CARD_TEMPLATES = [
   { id: "c-ly", title: "1 光年", value: "光一年跑的路", mode: "cosmos" },
   { id: "c-times10", title: "十倍电梯", value: "每按一次 ×10", mode: "elevator" },
   { id: "c-mid", title: "数轴中点", value: "0 到 100 的中间是 50", mode: "numberline" },
+  { id: "c-huangshan", title: "黄山莲花峰", value: "1,864 米", mode: "hike" },
+  { id: "c-fuji", title: "富士山", value: "3,776 米", mode: "hike" },
+  { id: "c-planck", title: "普朗克长度", value: "大约 1.6×10⁻³⁵ 米", mode: "zoom" },
+  { id: "c-universe", title: "可观测宇宙", value: "大约 930 亿光年", mode: "zoom" },
+  { id: "c-ant", title: "蚂蚁", value: "大约 4 毫米", mode: "zoom" },
+  { id: "c-paris-flight", title: "上海到巴黎", value: "比东京远大约 5.3 倍", mode: "flight" },
+  { id: "c-hsr", title: "高铁 1 小时", value: "大约 350 公里（假设）", mode: "race" },
 ];
 
 export const CONST = {
@@ -395,5 +415,9 @@ export const CONST = {
   LIGHT_MOON_S, LIGHT_SUN_S, LIGHT_YEAR_KM, ISA_LAPSE_C_PER_KM,
 };
 
+// Kept for parent session stats only. The app no longer auto-ends a play day
+// at 15–18 minutes: the scale journey is longer than that, and a mid-activity
+// kick-out ("今天就到这儿") was breaking first playtests.
 export const SESSION_MINUTES = 18;
 export const SESSION_WINDDOWN_MIN = 15;
+export const AUTO_END_SESSION = false;

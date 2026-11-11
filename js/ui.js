@@ -99,12 +99,13 @@ export function toast(text, ms = 1800) {
 
 const ABSTRACT_CARDS = new Set(["c-mid", "c-times10"]);
 
-export function maybeDropCard(mode) {
+export function maybeDropCard(mode, opts = {}) {
   const owned = new Set(store.get().cards.map((c) => c.id));
   const pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
   if (!pool.length) return null;
-  // Occasional surprise, never promised. ~35% after a reveal.
-  if (Math.random() > 0.35) return null;
+  // Occasional surprise, never promised. A little more often so a first
+  // sitting can collect more than one or two cards.
+  if (!opts.force && Math.random() > 0.72) return null;
   const personal = pool.filter((c) => !ABSTRACT_CARDS.has(c.id));
   // First card the child ever gets should be a personal world fact.
   let t;
@@ -124,22 +125,85 @@ export function maybeDropCard(mode) {
 
 export function showCard(template, onDone) {
   const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
-  const card = el("div", { class: "card-drop" },
+  const front = el("div", { class: "card-face card-front" },
     art,
     el("div", { class: "k" }, "一张世界卡"),
     el("div", { class: "t" }, template.title),
     el("div", { class: "v" }, template.value),
-    el("p", { style: { color: "var(--muted)" }, text: "点一下收好" }),
+    el("p", { style: { color: "var(--muted)" }, text: "点卡片翻一面" }),
   );
-  const wrap = el("div", { class: "reveal", onClick: () => { wrap.remove(); onDone?.(); } }, card);
+  const back = el("div", { class: "card-face card-back" },
+    el("div", { class: "k" }, "翻过来了"),
+    el("div", { class: "t" }, template.title),
+    el("div", { class: "v" }, template.value),
+    el("p", { style: { color: "var(--muted)" }, text: template.note || "这是你世界里的一个数。再点可以翻回去。" }),
+  );
+  const card = el("div", { class: "card-drop flippable", "aria-label": "点卡片翻面" },
+    el("div", { class: "card-inner" }, front, back),
+  );
+  bindCardFlip(card);
+  const doneBtn = el("button", { class: "choice ok card-keep", onClick: (e) => {
+    e.stopPropagation();
+    wrap.remove();
+    onDone?.();
+  } }, "收好");
+  const wrap = el("div", { class: "reveal" }, card, doneBtn);
   root().append(wrap);
-  // Paint after layout so the canvas has a real size.
   requestAnimationFrame(() => paintCardArt(art, template));
-  talk("一张世界卡。" + template.title + "，" + template.value);
+  talk("一张世界卡。" + template.title + "，" + template.value + "。点卡片可以翻一面。");
 }
 
-export function afterReveal(mode, onDone) {
-  const card = maybeDropCard(mode);
+export function bindCardFlip(card) {
+  if (!card || card._flipBound) return card;
+  card._flipBound = true;
+  card.classList.add("flippable");
+  card.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("button")) return;
+    e.stopPropagation();
+    card.classList.toggle("flipped");
+    sfx.tap();
+  });
+  return card;
+}
+
+/** Stay in the activity after a reveal. Do not dump to the hub. */
+export function offerContinue(host, { title, body, tone = "info", actions = [], goHome, talk: spoken } = {}) {
+  if (!host) return null;
+  host.querySelectorAll(".continue-box").forEach((n) => n.remove());
+  const box = el("div", { class: "prompt dock-bottom continue-box tone-" + tone });
+  if (title) box.append(el("h2", { text: title }));
+  if (body) box.append(el("p", { text: body }));
+  const row = el("div", { class: "choices" });
+  const all = actions.slice();
+  if (goHome) all.push({ label: "回主页", onClick: goHome });
+  for (const a of all) {
+    row.append(el("button", {
+      class: "choice" + (a.kind ? " " + a.kind : ""),
+      onClick: () => { sfx.tap(); box.remove(); a.onClick?.(); },
+    }, a.label));
+  }
+  box.append(row);
+  host.append(box);
+  if (spoken) talk(spoken);
+  return box;
+}
+
+/** Mark right/wrong on a prompt, then continue without kicking to the menu. */
+export function markAnswer(box, picked, ok) {
+  if (!box) return;
+  box.classList.add(ok ? "answer-ok" : "answer-no");
+  box.querySelectorAll(".choice").forEach((btn) => {
+    const isPicked = picked && (btn.getAttribute("aria-label") === (picked.ariaLabel || picked.label) || btn.textContent.includes(picked.label || "___none___"));
+    if (isPicked) btn.classList.add(ok ? "is-right" : "is-wrong");
+    if (picked && picked.ok && btn.getAttribute("aria-label") === (picked.ariaLabel || picked.label)) {
+      /* already marked */
+    }
+  });
+}
+
+
+export function afterReveal(mode, onDone, opts = {}) {
+  const card = maybeDropCard(mode, opts);
   if (card) showCard(card, onDone);
   else onDone?.();
 }

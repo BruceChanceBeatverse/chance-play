@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, afterReveal, finishMode } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, afterReveal, offerContinue } from "../ui.js";
 import { airportByCode, routeDistanceKm } from "../data.js";
 import { formatKm, formatHours, clamp } from "../geo.js";
 
@@ -41,7 +41,7 @@ export function raceLaneLayout(w, h, { promptTop, hudTop } = {}) {
   if (Number.isFinite(promptTop)) ceiling = Math.min(ceiling, promptTop - labelSpace);
   if (Number.isFinite(hudTop)) ceiling = Math.min(ceiling, hudTop - labelSpace);
   const bot = Math.max(top + 90, ceiling);
-  return { top, bot, labelSpace, left: 168, right: w - 48 };
+  return { top, bot, labelSpace, left: 220, right: w - 48 };
 }
 
 /** Child-facing assumption labels for the guess screen (not only after the race). */
@@ -54,12 +54,12 @@ export function raceChildCopy(track, racers) {
   return { dist, speeds, guessNote };
 }
 
-export function renderRace(app, { goHome, onDone, trackId } = {}) {
+export function renderRace(app, { goHome, onDone, trackId, allRacers = false } = {}) {
   const s = screen();
   s.classList.add("mode-race");
   const level = store.level("race");
   const track = tracks().find((t) => t.id === trackId) || pickTrack(level);
-  const racers = racersFor(level);
+  const racers = allRacers ? store.get().racers : racersFor(level);
   const times = racers.map((r) => ({ ...r, hours: track.km / r.kmh }));
   times.sort((a, b) => a.hours - b.hours);
   const winner = times[0];
@@ -179,10 +179,10 @@ export function renderRace(app, { goHome, onDone, trackId } = {}) {
       ctx.font = "700 15px -apple-system, PingFang SC, sans-serif";
       ctx.textAlign = "left";
       ctx.font = "700 13px -apple-system, PingFang SC, sans-serif";
-      ctx.fillText(racers[i].emoji + " " + racers[i].kmh + " 公里/小时", 8, y - 2);
+      ctx.fillText(racers[i].emoji + " " + racers[i].kmh + " 公里/小时", 18, y - 2);
       ctx.font = "700 12px -apple-system, PingFang SC, sans-serif";
       ctx.fillStyle = "#f5c84c";
-      ctx.fillText("（假设）", 8, y + 14);
+      ctx.fillText("（假设）", 18, y + 14);
       ctx.fillStyle = "#f4efe4";
     }
     // start / finish
@@ -222,6 +222,10 @@ export function renderRace(app, { goHome, onDone, trackId } = {}) {
       }
     });
 
+    if (phase === "guess") {
+      // A tiny preview crawl so the track is not frozen while guessing.
+      tRun = (tRun + 0.00045) % 0.12;
+    }
     if (phase === "run") {
       tRun = clamp(tRun + 0.0065, 0, 1);
       if (tRun >= 1) finish();
@@ -240,14 +244,24 @@ export function renderRace(app, { goHome, onDone, trackId } = {}) {
     const box = racePrompt(
       winner.name + " 最先到，用了 " + formatHours(winner.hours),
       note + (track.id === "tokyo" || track.id === "paris" ? " 这也是为什么骑自行车其实去不了东京。" : ""),
-      [{ label: "下一步", kind: "ok" }],
+      [{ label: "看好了", kind: "ok" }],
       () => {
         box.remove();
-        afterReveal("race", () => finishMode(onDone, goHome));
+        afterReveal("race", () => offerContinue(s, {
+          title: "再比一次？",
+          body: "可以加上飞机，或者骑车去东京看看要几天。",
+          tone: "ok",
+          goHome,
+          actions: [
+            { label: "加上飞机再比", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+            { label: "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: "tokyo", allRacers: true }) },
+            { label: "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: "paris", allRacers: true }) },
+          ],
+        }));
       },
     );
     s.append(box);
-    talk(winner.name + "最先到，要 " + formatHours(winner.hours) + "。");
+    talk(winner.name + "最先到，要 " + formatHours(winner.hours) + "。还可以再比一次。");
   }
 
   ask();

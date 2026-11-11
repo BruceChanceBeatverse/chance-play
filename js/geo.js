@@ -227,7 +227,20 @@ export function formatTemp(c) {
 }
 
 export function formatNumber(n, digits = 0) {
-  return Number(n).toLocaleString("zh-CN", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "—";
+  let d = digits;
+  const factor = Math.pow(10, d);
+  const roundedAbs = Math.round(Math.abs(num) * factor) / factor;
+  // Never let a non-zero value print as "0" (elevator 0.1 / 0.01 used to).
+  if (num !== 0 && roundedAbs === 0) {
+    const abs = Math.abs(num);
+    if (abs >= 0.1) d = 1;
+    else if (abs >= 0.01) d = 2;
+    else if (abs >= 0.001) d = 3;
+    else return num.toExponential(1).replace("e", " ×10^");
+  }
+  return num.toLocaleString("zh-CN", { maximumFractionDigits: d, minimumFractionDigits: d });
 }
 
 /** Equirectangular projection helpers. */

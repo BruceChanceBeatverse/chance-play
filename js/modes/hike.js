@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
-import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, finishMode, questionHudLayout, HUD_LAYOUT, playHint } from "../ui.js";
+import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint } from "../ui.js";
 import { hikeTempC, formatTemp, clamp } from "../geo.js";
 import { shouldShowHikePicker, resolveHike, renderHikePicker, switchRouteButton, FIRST_PLAY_HIKE_ID } from "../pickers.js";
 
@@ -13,6 +13,14 @@ export function autoHikeProgress(prev, dtSec, { dragging = false, asked = false 
   if (dragging || asked) return prev;
   const dt = Math.max(0, Math.min(0.05, dtSec));
   return Math.min(1, prev + dt / HIKE_PLAY_SECONDS);
+}
+
+/** Always show the official peak, not a noisy sample-point rounding. */
+export function hikeDisplayPeakM(hike) {
+  const official = Number(hike?.peakM);
+  if (Number.isFinite(official)) return official;
+  const pts = hike?.points || [];
+  return pts.reduce((m, p) => Math.max(m, p.elevM || 0), 0);
 }
 
 export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = {}) {
@@ -32,19 +40,22 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
   const minE = Math.min(...pts.map((p) => p.elevM));
   const maxE = Math.max(...pts.map((p) => p.elevM));
 
-  // Portrait starts a little up the visible slope, clear of the HUD.
-  // Landscape stays at 0 — that start is already clear.
+  // Always start at the trail foot (t = 0), so Fuji/Huangshan are not
+  // already halfway up the mountain when the figure looks like it is at the start.
   let t = hikeStartT(typeof window !== "undefined" ? window.innerWidth : 834,
                      typeof window !== "undefined" ? window.innerHeight : 1194);
   let dragging = false;
   const level = store.level("hike");
   let asked = false;
+  let celebrated = false;
+  let quizKind = null;
+  const officialPeak = hikeDisplayPeakM(hike);
 
   const canvas = el("canvas", { class: "fill", "aria-label": "爬山剖面" });
   s.append(canvas);
   s.append(topbar({
     title: hike.name,
-    sub: hike.sample ? "示例剖面，不是你的足迹" : "你的轨迹",
+    sub: hike.sample ? "示例山路，还不是你自己走的足迹" : "你的轨迹",
     onBack: goHome,
     extra: switchRouteButton("换一座山", () => renderHike(app, { goHome, onDone })),
   }));
@@ -131,19 +142,22 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     ctx.fillText("🚶", hx, hy - fig.lift);
     ctx.textBaseline = "alphabetic";
     // Label after the figure so 「最高 N 米」 stays fully legible at the summit.
-    const lab = hikePeakLabelPos(px, py, w, fig, { x: hx, y: hy - fig.lift });
+    const lab = hikePeakLabelPos(px, py, w, fig, { x: hx, y: hy - fig.lift }, { switchBox: hikeSwitchBtnBox(w) });
     ctx.fillStyle = "#0b1520";
     ctx.font = "700 16px -apple-system, PingFang SC, sans-serif";
     ctx.textAlign = lab.align;
-    ctx.fillText("最高 " + Math.round(peak.elevM) + " 米", lab.x, lab.y);
+    ctx.fillText("最高 " + Math.round(officialPeak) + " 米", lab.x, lab.y);
 
     const slopeWord = Math.abs(here.deg) < 3 ? "平" : here.deg > 8 ? "很陡" : here.deg > 3 ? "上坡" : here.deg < -8 ? "很陡的下坡" : "下坡";
+    const hideElev = asked && quizKind === "mid";
+    const hideTemp = asked && (quizKind === "temp" || quizKind === "mid");
     board.update([
       here.dist.toFixed(2) + " 公里",
-      Math.round(here.elev) + " 米",
+      hideElev ? "？" : Math.round(here.elev) + " 米",
       slopeWord + " " + Math.round(here.deg) + "°",
-      formatTemp(here.temp),
+      hideTemp ? "？" : formatTemp(here.temp),
     ]);
+    if (!celebrated && !dragging) maybeCelebrate(here);
     raf = requestAnimationFrame(draw);
   };
   raf = requestAnimationFrame(draw);
@@ -169,56 +183,136 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     else if (level >= 3 && t > 0.3) askTemp();
   }
 
+  function atSummit(here) {
+    const closeElev = Math.abs(here.elev - officialPeak) < Math.max(6, officialPeak * 0.02);
+    const nearPeakDist = Math.abs(here.dist - peak.distKm) < Math.max(0.15, totalKm * 0.08);
+    return closeElev && nearPeakDist;
+  }
+
+  function maybeCelebrate(here) {
+    if (celebrated) return;
+    if (!atSummit(here)) return;
+    celebrateSummit();
+  }
+
+  function celebrateSummit() {
+    if (celebrated) return;
+    celebrated = true;
+    asked = true;
+    quizKind = null;
+    s.querySelectorAll(".prompt").forEach((n) => n.remove());
+    const banner = el("div", { class: "summit-banner" },
+      "到山顶了！",
+      el("small", {}, hike.name.replace("（示例）", "") + "，最高 " + Math.round(officialPeak) + " 米"),
+    );
+    s.append(banner);
+    setTimeout(() => banner.remove(), 4000);
+    store.recordAnswer("hike", true);
+    const line = "到山顶了！最高 " + Math.round(officialPeak) + " 米。这是示例山路，还不是你自己走的足迹。";
+    talk(line);
+    const cont = () => offerContinue(s, {
+      title: "到山顶了",
+      body: hike.name.replace("（示例）", "") + "最高 " + Math.round(officialPeak) + " 米。还可以再爬一座，或去尺度之旅。",
+      tone: "ok",
+      goHome,
+      actions: [
+        { label: "再爬一座", kind: "ok", onClick: () => renderHike(app, { goHome, onDone }) },
+        { label: "再走一次", onClick: () => renderHike(app, { goHome, onDone, hikeId: hike.id }) },
+        { label: "去尺度之旅", onClick: () => onDone?.() || goHome?.() },
+      ],
+    });
+    afterReveal("hike", cont, { force: true });
+  }
+
   function askPeak() {
     asked = true;
-    const box = promptBox("最高的地方在哪儿？", "把小人拖到山顶，再选。", [
-      { label: "我拖到山顶了", id: "done", icon: "⛰️" },
-      { label: "再试试", id: "retry", icon: "🔄" },
+    quizKind = "peak";
+    const box = promptBox("最高的地方在哪儿？", "把小人走到山顶。还没到的话，就再说一声。", [
+      { label: "我走到山顶了", id: "done", icon: "⛰️" },
+      { label: "还在走", id: "retry", icon: "🔄" },
     ], (c) => {
       if (c.id === "retry") {
         box.remove();
         asked = false;
-        talk("再拖一次，找到曲线最高的那个点。");
+        quizKind = null;
+        talk("继续走，找到曲线最高的那个点。");
         return;
       }
-      const close = Math.abs(at(t).elev - peak.elevM) < Math.max(8, peak.elevM * 0.05);
-      store.recordAnswer("hike", close);
+      const here = at(t);
+      if (!atSummit(here)) {
+        box.remove();
+        asked = false;
+        quizKind = null;
+        toast("还没到山顶，再往上走走", 2600);
+        talk("还没到山顶。再往上走走，找到最高的地方。");
+        return;
+      }
       box.remove();
-      talk(close ? "对，这是最高的地方，大约 " + Math.round(peak.elevM) + " 米。" : "最高的地方大约 " + Math.round(peak.elevM) + " 米。");
-      afterReveal("hike", () => finishMode(onDone, goHome));
+      celebrateSummit();
     });
     s.append(box);
-    talk("找出最高的地方，把小人拖到那儿。");
+    talk("找出最高的地方，把小人走到那儿。还没到就继续走。");
   }
 
   function askMid() {
     asked = true;
+    quizKind = "mid";
     const mid = at(0.5);
-    const box = promptBox("走到一半，大约有多高？", "先猜，再看数字。", shuffle([
+    const box = promptBox("走到一半，大约有多高？", "先猜，不要看角落里的数。", shuffle([
       { label: Math.round(mid.elev) + " 米", ok: true },
       { label: Math.round(peak.elevM) + " 米" },
       { label: Math.round(mid.elev * 0.5) + " 米" },
     ]), (c) => {
       store.recordAnswer("hike", !!c.ok);
-      box.remove();
-      talk("走到一半，高度大约 " + Math.round(mid.elev) + " 米，外面大约 " + formatTemp(mid.temp) + "。");
-      afterReveal("hike", () => finishMode(onDone, goHome));
+      markAnswer(box, c, !!c.ok);
+      const line = "走到一半，高度大约 " + Math.round(mid.elev) + " 米，外面大约 " + formatTemp(mid.temp) + "。";
+      talk(line);
+      setTimeout(() => {
+        box.remove();
+        quizKind = null;
+        asked = true;
+        afterReveal("hike", () => offerContinue(s, {
+          title: c.ok ? "对了" : "是 " + Math.round(mid.elev) + " 米",
+          body: line + "还可以继续走到山顶。",
+          tone: c.ok ? "ok" : "no",
+          goHome,
+          actions: [
+            { label: "继续走到山顶", kind: "ok", onClick: () => { asked = false; } },
+            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone }) },
+          ],
+        }));
+      }, 900);
     });
     s.append(box);
-    talk("走到一半，现在大约有多高？");
+    talk("走到一半，现在大约有多高？先猜。");
   }
 
   function askTemp() {
     asked = true;
-    const box = promptBox("爬得越高，气温会怎样？", "每升高 100 米，大约凉 0.65 度。", [
+    quizKind = "temp";
+    const box = promptBox("爬得越高，气温会怎样？", "先想一想，不要看角落里的温度。", [
       { label: "更冷", ok: true },
       { label: "更暖" },
     ], (c) => {
       store.recordAnswer("hike", !!c.ok);
-      box.remove();
-      talk(c.ok ? "对。每升高 100 米，大约凉 0.65 度。" : "其实会更冷。每升高 100 米，大约凉 0.65 度。");
-      if (level >= 5) askWhich();
-      else afterReveal("hike", () => finishMode(onDone, goHome));
+      markAnswer(box, c, !!c.ok);
+      const line = c.ok ? "对。每升高 100 米，大约凉 0.65 度。" : "其实会更冷。每升高 100 米，大约凉 0.65 度。";
+      talk(line);
+      setTimeout(() => {
+        box.remove();
+        quizKind = null;
+        if (level >= 5) askWhich();
+        else afterReveal("hike", () => offerContinue(s, {
+          title: c.ok ? "对了" : "会更冷",
+          body: line,
+          tone: c.ok ? "ok" : "no",
+          goHome,
+          actions: [
+            { label: "继续爬", kind: "ok", onClick: () => { asked = false; } },
+            { label: "再爬一座", onClick: () => renderHike(app, { goHome, onDone }) },
+          ],
+        }));
+      }, 900);
     });
     s.append(box);
     talk("爬得越高，外面是更冷还是更暖？");
@@ -232,8 +326,17 @@ export function renderHike(app, { goHome, onDone, hikeId, firstPlay = false } = 
     const box = promptBox("只看这座山的形状，它是哪一座？", "看高度和长度。", options, (c) => {
       store.recordAnswer("hike", !!c.ok);
       box.remove();
-      talk(c.ok ? "对，这是" + hike.name + "。" : "这是" + hike.name + "，最高大约 " + Math.round(peak.elevM) + " 米。");
-      afterReveal("hike", () => finishMode(onDone, goHome));
+      const line = c.ok ? "对，这是" + hike.name + "。" : "这是" + hike.name + "，最高 " + Math.round(officialPeak) + " 米。";
+      talk(line);
+      afterReveal("hike", () => offerContinue(s, {
+        title: c.ok ? "对了" : "这是" + hike.name.replace("（示例）", ""),
+        body: line,
+        tone: c.ok ? "ok" : "no",
+        goHome,
+        actions: [
+          { label: "再爬一座", kind: "ok", onClick: () => renderHike(app, { goHome, onDone }) },
+        ],
+      }));
     });
     s.append(box);
   }
@@ -264,7 +367,7 @@ export function hikeFigureSize() {
 }
 
 /** Keep 「最高 N 米」 clear of the figure at the summit, even if the walker is a little past the peak. */
-export function hikePeakLabelPos(px, py, w, fig = hikeFigureSize(), walker) {
+export function hikePeakLabelPos(px, py, w, fig = hikeFigureSize(), walker, chrome = {}) {
   const textW = 110;
   const textH = 18;
   const pad = 12;
@@ -297,10 +400,18 @@ export function hikePeakLabelPos(px, py, w, fig = hikeFigureSize(), walker) {
     pack("right", leftX, wy + r + textH + 4),
     pack("left", Math.min(w - 16 - textW, rightX + 24), py - 8),
   ];
+  const sw = chrome.switchBox;
+  const hitsSwitch = (lab) => sw && !(lab.right < sw.left - 6 || lab.left > sw.right + 6 || lab.bottom < sw.top - 6 || lab.top > sw.bottom + 6);
   for (const lab of candidates) {
-    if (onCanvas(lab) && !overlaps(lab)) return lab;
+    if (onCanvas(lab) && !overlaps(lab) && !hitsSwitch(lab) && lab.top >= 96) return lab;
   }
-  return pack("left", Math.min(w - 16 - textW, rightX), py - 8);
+  for (const lab of candidates) {
+    if (onCanvas(lab) && !overlaps(lab) && !hitsSwitch(lab)) return lab;
+  }
+  // Prefer the left of a right-hand peak, below the top bar, so 「换一座山」 cannot cover it.
+  const safeY = Math.max(py - 8, 110);
+  const leftSafe = pack("right", Math.max(16 + textW, Math.min(px, wx - r) - pad), safeY);
+  return leftSafe;
 }
 
 /** Keep the sun in open sky, clear of the title chip and 「换一座山」. */
@@ -318,7 +429,7 @@ export function hikeSunPos(w, h) {
 /** Portrait 2-column HUD is tall; keep the path (and the walker) above it. */
 export const HIKE_HUD_CLEARANCE = 20;
 /** Stay below the L1 ask trigger (t > 0.2) so the peak question does not fire at start. */
-export const HIKE_PORTRAIT_START_T = 0.1;
+export const HIKE_PORTRAIT_START_T = 0;
 
 export function hikeHudBox(w, h, { items = 4 } = {}) {
   const lay = questionHudLayout(w, h, { items });
@@ -345,8 +456,8 @@ export function hikePathLayout(w, h, { minE = 0, maxE = 100, totalKm = 1 } = {})
   };
 }
 
-export function hikeStartT(w, h) {
-  return h > w ? HIKE_PORTRAIT_START_T : 0;
+export function hikeStartT(_w, _h) {
+  return 0;
 }
 
 export function hikePointAt(pts, totalKm, tt) {

@@ -4,6 +4,7 @@ import { el, screen, fitCanvas } from "./ui.js";
 import { renderFlight } from "./modes/flight.js";
 import { renderRace } from "./modes/race.js";
 import { renderHike } from "./modes/hike.js";
+import { renderZoom } from "./modes/zoom.js";
 import { airportByCode, routeDistanceKm } from "./data.js";
 import { thumbViewForRoute } from "./pickers.js";
 import { greatCirclePoints, lonLatToXY } from "./geo.js";
@@ -46,7 +47,9 @@ export function renderWelcome(app, go) {
     // Labels sit under the cities so they cannot crush the gold route line at the top.
     drawCityGlow(ctx, a.x, a.y, "上海", { labelY: 24 });
     drawCityGlow(ctx, b.x, b.y, "东京", { labelY: 24 });
-    const i = Math.floor(0.42 * (xy.length - 1));
+    const prog = (t * 0.06) % 2;
+    const u = prog <= 1 ? prog : 2 - prog;
+    const i = Math.max(0, Math.min(xy.length - 2, Math.floor(u * (xy.length - 1))));
     const here = xy[i], nxt = xy[Math.min(xy.length - 1, i + 1)];
     const ang = Math.atan2(nxt.y - here.y, nxt.x - here.x);
     drawPlane(ctx, here.x, here.y, ang, 1.6);
@@ -97,9 +100,20 @@ function chooseNext(app, go) {
     ctx.fillText("🚗", w * 0.62, h * 0.68);
   }, () => { unlockAudio(); renderRace(app, { goHome: () => go("home"), onDone: () => wrap(app, go), trackId: "tokyo" }); });
 
+  const journeyBtn = choiceTile("尺度之旅", "ok", (ctx, w, h) => {
+    fillSky(ctx, w, h, { top: "#071018", mid: "#143a5c", bot: "#0b1520" });
+    ctx.fillStyle = "#f5c84c";
+    ctx.beginPath(); ctx.arc(w * 0.5, h * 0.52, Math.min(w, h) * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#071018";
+    ctx.font = "28px -apple-system";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🔎", w * 0.5, h * 0.52);
+  }, () => { unlockAudio(); renderZoom(app, { goHome: () => go("home"), onDone: () => wrap(app, go) }); });
+
   const ui = el("div", { class: "welcome choose-next-ui" },
     el("h2", { class: "welcome-title" }, "下一站，你来选"),
-    el("div", { class: "choices choose-next-row" }, parisBtn, hikeBtn, raceBtn),
+    el("div", { class: "choices choose-next-row" }, parisBtn, hikeBtn, raceBtn, journeyBtn),
   );
   s.append(canvas, ui);
   let running = true, raf = 0, t0 = performance.now();
@@ -153,20 +167,18 @@ function goFlightParis(app, go) {
 }
 
 function wrap(app, go) {
-  store.patch({ firstPlayDone: true, tomorrowQuestionId: "q1", lastTomorrowAt: store.todayKey() });
+  store.patch({ firstPlayDone: true, tomorrowQuestionId: "q1", lastTomorrowAt: store.todayKey(), endedToday: false });
   const s = screen();
-  const q = "明天看看：骑自行车去东京要几天？";
+  const q = "还可以继续。去走一趟从很小到宇宙的尺度之旅？也可以先想：骑自行车去东京要几天？";
   s.append(el("div", { class: "end-card" },
-    el("h2", { text: "今天就到这儿" }),
-    el("p", { text: q }),
-    el("p", { style: { color: "var(--muted)", fontSize: "18px" }, text: "到点就结束，不弹再玩一关。明天再来。" }),
+    el("h2", { text: "还可以继续" }),
+    el("p", { text: "尺度之旅可以从很小一直走到宇宙，路上会经过你的飞机和山。" }),
+    el("p", { style: { color: "var(--muted)", fontSize: "18px" }, text: "想一想也可以：骑自行车去东京要几天？" }),
     el("button", { class: "choice ok", style: { marginTop: "18px" }, onClick: () => {
-      // Short first day after the closer is seen: mark today ended so
-      // the child is not dropped into a full open grid of eight modes.
-      store.patch({ endedToday: true });
-      store.recordSession({ endedBy: "firstplay" });
-      go("home");
-    } }, "好"),
+      unlockAudio();
+      renderZoom(app, { goHome: () => go("home") });
+    } }, "去尺度之旅"),
+    el("button", { class: "choice", style: { marginTop: "8px" }, onClick: () => go("home") }, "回主页"),
   ));
   app.replaceChildren(s);
   talk(q);

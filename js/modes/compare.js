@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, afterReveal, promptBox, finishMode } from "../ui.js";
+import { el, screen, topbar, afterReveal, promptBox, offerContinue, markAnswer } from "../ui.js";
 import { routeDistanceKm } from "../data.js";
 import { formatKm, formatNumber } from "../geo.js";
 
@@ -121,7 +121,7 @@ export function renderCompare(app, { goHome, onDone } = {}) {
       ok ? "选对了" : "再看一眼",
       pair[hi].name + " 更" + pair.kind.slice(1) + "，大约是 " + pair[lo].name + " 的 " + times + " 倍。",
       [{ label: "下一步", kind: "ok" }],
-      () => { box.remove(); afterReveal("compare", () => finishMode(onDone, goHome)); },
+      () => { box.remove(); afterReveal("compare", () => offerContinue(s, { title: "再比一对？", body: "还可以再看一座山，或两条航线。", tone: "ok", goHome, actions: [{ label: "再来一对", kind: "ok", onClick: () => renderCompare(app, { goHome, onDone }) }] })); },
     );
     s.append(box);
     talk((ok ? "对了。" : "其实是" + pair[hi].name + "。") + "差大约 " + times + " 倍。");
