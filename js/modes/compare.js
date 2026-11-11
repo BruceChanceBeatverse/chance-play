@@ -12,12 +12,13 @@ export function comparePairsForLevel(level) {
   const sheshan = hikes.find((h) => h.id === "sheshan")?.peakM || 99;
   const huang = hikes.find((h) => h.id === "huangshan")?.peakM || 1864;
   const fuji = hikes.find((h) => h.id === "fuji")?.peakM || 3776;
+  const walk = racers.find((r) => r.id === "walk");
   const bike = racers.find((r) => r.id === "bike");
   const car = racers.find((r) => r.id === "car");
   const hsr = racers.find((r) => r.id === "hsr");
   const plane = racers.find((r) => r.id === "plane");
 
-  const pool = {
+  const byLevel = {
     1: [
       { kind: "更快", a: { name: bike.name, emoji: bike.emoji, value: bike.kmh, unit: " 公里/小时", assumed: true }, b: { name: car.name, emoji: car.emoji, value: car.kmh, unit: " 公里/小时", assumed: true } },
       { kind: "更高", a: { name: "佘山", emoji: "⛰️", value: sheshan, unit: " 米" }, b: { name: "黄山", emoji: "🏔️", value: huang, unit: " 米" } },
@@ -36,12 +37,51 @@ export function comparePairsForLevel(level) {
       { kind: "更快", a: { name: "飞机 A", emoji: "✈️", value: 850, unit: " 公里/小时", assumed: true }, b: { name: "飞机 B", emoji: "🛫", value: 850 * 1.1, unit: " 公里/小时", assumed: true } },
     ],
   };
-  return pool[Math.min(5, Math.max(1, level))] || pool[1];
+  if (walk && bike) {
+    byLevel[1].push({ kind: "更快", a: { name: walk.name, emoji: walk.emoji, value: walk.kmh, unit: " 公里/小时", assumed: true }, b: { name: bike.name, emoji: bike.emoji, value: bike.kmh, unit: " 公里/小时", assumed: true } });
+  }
+  if (bike && plane) {
+    byLevel[2].push({ kind: "更快", a: { name: bike.name, emoji: bike.emoji, value: bike.kmh, unit: " 公里/小时", assumed: true }, b: { name: plane.name, emoji: plane.emoji, value: plane.kmh, unit: " 公里/小时", assumed: true } });
+  }
+  byLevel[3].push({ kind: "更高", a: { name: "佘山", emoji: "⛰️", value: sheshan, unit: " 米" }, b: { name: "富士山", emoji: "🗻", value: fuji, unit: " 米" } });
+  const lv = Math.min(5, Math.max(1, level));
+  // Higher levels may also reuse earlier pairs, so "再来一对" has something new to show.
+  const list = [];
+  const seen = new Set();
+  for (let i = 1; i <= lv; i++) {
+    for (const p of (byLevel[i] || [])) {
+      const k = comparePairKey(p);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      list.push(p);
+    }
+  }
+  return list;
+}
+
+export function comparePairKey(pair) {
+  if (!pair) return "";
+  const names = [pair.a?.name, pair.b?.name].filter(Boolean).sort();
+  return pair.kind + ":" + names.join("~");
+}
+
+export function pickComparePair(level, askedKeys = []) {
+  const list = comparePairsForLevel(level);
+  if (!list.length) return null;
+  const asked = new Set(askedKeys || []);
+  const fresh = list.filter((p) => !asked.has(comparePairKey(p)));
+  if (fresh.length) return fresh[Math.floor(Math.random() * fresh.length)];
+  const last = askedKeys.length ? askedKeys[askedKeys.length - 1] : "";
+  const notLast = list.filter((p) => comparePairKey(p) !== last);
+  const pool = notLast.length ? notLast : list;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function pairFor(level) {
-  const list = comparePairsForLevel(level);
-  return list[Math.floor(Math.random() * list.length)];
+  const keys = store.askedKeys()
+    .filter((k) => String(k).startsWith("compare:"))
+    .map((k) => k.slice("compare:".length));
+  return pickComparePair(level, keys);
 }
 
 /** Revealed compare values: assumed figures keep 「假设」; sourced ones do not. */
@@ -55,6 +95,7 @@ export function renderCompare(app, { goHome, onDone } = {}) {
   s.classList.add("mode-compare");
   const level = store.level("compare");
   const pair = pairFor(level);
+  if (pair) store.rememberAsked("compare:" + comparePairKey(pair));
   const hi = pair.a.value >= pair.b.value ? "a" : "b";
   const lo = hi === "a" ? "b" : "a";
   const ratio = pair[hi].value / pair[lo].value;

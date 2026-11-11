@@ -61,12 +61,30 @@ export function raceImpossibleNote(track) {
   return " 这也是为什么骑自行车其实去不了" + dest + "。";
 }
 
-export function renderRace(app, { goHome, onDone, trackId, allRacers = false } = {}) {
+export function racerById(id, racers) {
+  const list = racers || [];
+  return list.find((r) => r.id === id) || null;
+}
+
+/** Hours (and kid-facing days) for a solo bike (or walk) journey. */
+export function bikeJourneyHours(km, kmh = 15) {
+  const speed = Number(kmh) > 0 ? Number(kmh) : 15;
+  const dist = Number(km) || 0;
+  return dist / speed;
+}
+
+export function raceContinueStartsBikeJourney(action) {
+  return !!(action && action.soloId === "bike");
+}
+
+export function renderRace(app, { goHome, onDone, trackId, allRacers = false, soloId = null } = {}) {
   const s = screen();
   s.classList.add("mode-race");
   const level = store.level("race");
   const track = tracks().find((t) => t.id === trackId) || pickTrack(level);
-  const racers = allRacers ? store.get().racers : racersFor(level);
+  const pack = store.get().racers;
+  const solo = soloId ? racerById(soloId, pack) : null;
+  const racers = solo ? [solo] : (allRacers ? pack : racersFor(level));
   const times = racers.map((r) => ({ ...r, hours: track.km / r.kmh }));
   times.sort((a, b) => a.hours - b.hours);
   const winner = times[0];
@@ -74,8 +92,9 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false } =
   const canvas = el("canvas", { class: "fill", "aria-label": "速度比赛" });
   s.append(canvas);
   const copy = raceChildCopy(track, racers);
+  const destName = track.id === "paris" ? "巴黎" : track.id === "tokyo" ? "东京" : track.name;
   s.append(topbar({
-    title: "速度大比拼",
+    title: solo ? ("骑车去" + destName) : "速度大比拼",
     sub: copy.dist,
     onBack: goHome,
   }));
@@ -98,6 +117,25 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false } =
   let picked = null;
 
   function ask() {
+    if (solo) {
+      const hours = track.km / solo.kmh;
+      const actual = hours;
+      const choices = shuffle([
+        { label: formatHours(actual), ok: true, value: actual },
+        { label: formatHours(actual * 0.5), value: actual * 0.5 },
+        { label: formatHours(actual * 2), value: actual * 2 },
+      ]);
+      const box = racePrompt("骑车去" + destName + "要多久？", "先猜几天，再看这一趟。速度是假设值。", choices, (c) => {
+        picked = c;
+        store.recordAnswer("race", !!c.ok);
+        store.addPrediction({ mode: "race", guessed: c.value, actual, ratio: c.value / actual });
+        box.remove();
+        startRun();
+      });
+      s.append(box);
+      talk("骑自行车去" + destName + "，大约 " + formatKm(track.km) + "，要多久？先猜。");
+      return;
+    }
     if (level <= 2) {
       const choices = racers.map((r) => ({ label: r.emoji + " " + r.name, id: r.id, ok: r.id === winner.id }));
       const box = racePrompt("谁先到？", copy.guessNote, choices, (c) => {
@@ -249,28 +287,39 @@ export function renderRace(app, { goHome, onDone, trackId, allRacers = false } =
       ? "这段路的长度是假设值。"
       : "按直线距离、不停歇的固定速度来算。真正路上没有这样一条直路。";
     const box = racePrompt(
-      winner.name + " 最先到，用了 " + formatHours(winner.hours),
+      solo
+        ? ("骑车去" + destName + "要 " + formatHours(winner.hours))
+        : (winner.name + " 最先到，用了 " + formatHours(winner.hours)),
       note + raceImpossibleNote(track),
       [{ label: "看好了", kind: "ok" }],
       () => {
         box.remove();
         afterReveal("race", () => offerContinue(s, {
-          title: "再比一次？",
-          body: track.id === "paris"
-            ? "可以再比一次，或者看看骑车去巴黎要多久。"
-            : "可以加上飞机，或者骑车去东京看看要几天。",
+          title: solo ? "要这么多天" : "再比一次？",
+          body: solo
+            ? ("骑自行车去" + destName + "大约要 " + formatHours(winner.hours) + "。这是按假设速度、不停歇算的。也可以再比一次速度。")
+            : (track.id === "paris"
+              ? "可以再比一次，或者看看骑车去巴黎要多久。"
+              : "可以加上飞机，或者骑车去东京看看要几天。"),
           tone: "ok",
           goHome,
-          actions: [
-            { label: "加上飞机再比", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
-            { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", allRacers: true }) },
-            { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
-          ],
+          actions: solo
+            ? [
+                { label: "再看一次", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, soloId: "bike" }) },
+                { label: "加上飞机再比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+              ]
+            : [
+                { label: "加上飞机再比", kind: "ok", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id, allRacers: true }) },
+                { label: track.id === "paris" ? "骑车去巴黎" : "骑车去东京", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "paris" : "tokyo", soloId: "bike" }) },
+                { label: track.id === "paris" ? "去东京比一比" : "去巴黎比一比", onClick: () => renderRace(app, { goHome, onDone, trackId: track.id === "paris" ? "tokyo" : "paris", allRacers: true }) },
+              ],
         }));
       },
     );
     s.append(box);
-    talk(winner.name + "最先到，要 " + formatHours(winner.hours) + "。还可以再比一次。");
+    talk(solo
+      ? ("骑自行车去" + destName + "要 " + formatHours(winner.hours) + "。")
+      : (winner.name + "最先到，要 " + formatHours(winner.hours) + "。还可以再比一次。"));
   }
 
   ask();

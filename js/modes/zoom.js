@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { talk, sfx } from "../audio.js";
-import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer } from "../ui.js";
+import { el, screen, topbar, fitCanvas, bindPinch, afterReveal, promptBox, offerContinue, markAnswer, dismissReveal, isRevealOpen } from "../ui.js";
 import { DEFAULT_PROFILE } from "../data.js";
 import { log10, pow10, clamp, formatNumber } from "../geo.js";
 import { drawGlobe, drawMoon, drawSun, drawMountainPair } from "../art.js";
@@ -27,6 +27,16 @@ export function zoomJumpStyle(id, { fromStart = false } = {}) {
   if (id === "universe" || id === "planck") return "cruise";
   if (id === "me" || id === "ant" || id === "sheshan" || id === "tokyo") return "hop";
   return "cruise";
+}
+
+/** Seconds to pause at a named stop. A targeted cruise to 宇宙 / 普朗克 only name-drops. */
+export const ZOOM_CRUISE_DWELL = 0.45;
+
+export function zoomDwellForStop(layer, { cruiseGoal = null, atGoal = false } = {}) {
+  const cruising = cruiseGoal != null && !atGoal;
+  if (cruising) return ZOOM_CRUISE_DWELL;
+  if (layer && (layer.id === "planck" || layer.id === "universe")) return 8;
+  return layer?.familiar ? 7.5 : (layer?.generated ? 3.4 : 5.5);
 }
 
 export function renderZoom(app, { goHome, onDone } = {}) {
@@ -81,19 +91,16 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   const fullBtn = el("button", {}, "从头走");
   pauseBtn.addEventListener("click", () => toggleAuto());
   fullBtn.addEventListener("click", () => {
-    jumpTo("planck", false, { fromStart: true });
-    cruiseDir = 1;
+    jumpTo("planck", true, { fromStart: true });
     auto = true;
     holdPause = false;
-    dwellLeft = 2.5;
     pauseBtn.textContent = "暂停";
-    talk("从最小的普朗克长度出发，一路走到宇宙。");
     sfx.whoosh();
   });
   cruiseBox.append(pauseBtn, fullBtn);
   s.append(cruiseBox);
 
-  const linger = el("div", { class: "zoom-cruise", style: { right: "auto", left: "16px", top: "auto", bottom: "120px", display: "none" } });
+  const linger = el("div", { class: "zoom-cruise zoom-mode-entry", style: { right: "auto", left: "16px", top: "auto", bottom: "120px", display: "none" } });
   s.append(linger);
 
   function toggleAuto() {
@@ -118,10 +125,21 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (style === "start-at" || style === "hop") {
       target = destLog;
       if (style === "start-at") logS = destLog;
-      cruiseGoal = null;
       lastDwellId = id;
-      dwellLeft = stop.familiar ? 7 : 4;
-      if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
+      asked = false;
+      s.querySelectorAll(".prompt").forEach((n) => n.remove());
+      // 从头走 starts at Planck, then walks the whole spine out to the universe.
+      if (style === "start-at" && id === "planck") {
+        const uni = stops.find((l) => l.id === "universe");
+        cruiseGoal = uni ? clamp(log10(uni.metres), minL, maxL) : maxL;
+        cruiseDir = 1;
+        dwellLeft = zoomDwellForStop(stop, { cruiseGoal });
+        if (speak) talk("从最小的普朗克长度出发，一路走到宇宙。");
+      } else {
+        cruiseGoal = null;
+        dwellLeft = stop.familiar ? 7 : 4;
+        if (speak) talk("来看" + stop.name + "。" + (stop.correlate || stop.blurb));
+      }
     } else {
       // Walk the spine. Tapping 宇宙 must not teleport past the decades in between.
       cruiseDir = destLog >= logS ? 1 : -1;
@@ -131,7 +149,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       s.querySelectorAll(".prompt").forEach((n) => n.remove());
       if (speak) talk("我们一站一站走到" + stop.name + "，途中会经过很多站，不会一下子跳过去。");
     }
-    if (style !== "cruise") maybeAsk();
+    if (style !== "cruise" && cruiseGoal == null) maybeAsk();
   }
 
   function nearest(ls) {
@@ -162,6 +180,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const btn = el("button", {}, label);
     btn.addEventListener("click", () => {
       auto = false;
+      if (isRevealOpen()) dismissReveal();
       if (stop.lingerMode === "flight") {
         renderFlight(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), tripId: stop.tripId || "pvg-hnd" });
       } else if (stop.lingerMode === "hike") {
@@ -210,6 +229,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     }
 
     logS += (target - logS) * 0.18;
+    logS = zoomSnapLog(logS, target, { minL, maxL });
     const { ctx, w, h } = fitCanvas(canvas);
     ctx.fillStyle = "#071018";
     ctx.fillRect(0, 0, w, h);
@@ -218,15 +238,30 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const hero = zoomHeroLayout(w, h, { hasPrompt, landscape });
     const cx = hero.cx;
     const cy = hero.cy;
-    const { layer, metres, close } = nearest(logS);
+    let { layer, metres, close } = nearest(logS);
+    const ends = zoomEndpointState(logS, { minL, maxL });
+    if (ends.arrived) {
+      const endStop = stops.find((l) => l.id === ends.id);
+      if (endStop) { layer = endStop; metres = endStop.metres; close = true; }
+    }
     visited.add(layer.id);
     if (mountainVisited(layer.id)) visited.add("mountain");
 
     if (close && layer.id !== lastDwellId) {
       lastDwellId = layer.id;
-      dwellLeft = layer.familiar ? 7.5 : (layer.generated ? 3.4 : 5.5);
+      const atGoal = ends.arrived || layer.id === "planck" || layer.id === "universe";
+      const cruising = cruiseGoal != null && !atGoal;
+      dwellLeft = zoomDwellForStop(layer, { cruiseGoal, atGoal: atGoal && cruiseGoal == null });
       speakStop(layer);
       showLinger(layer);
+      if (cruising) {
+        // Keep walking the spine. Quizzes wait until the child arrives or pauses.
+      } else if ((layer.id === "planck" || layer.id === "universe") && !store.hasAsked("zoom:arrived:" + layer.id)) {
+        dwellLeft = Math.max(dwellLeft, 10);
+        celebrateEndpoint(layer);
+      } else {
+        maybeAsk();
+      }
     }
     for (const [id, b] of Object.entries(wayBtns)) {
       b.classList.toggle("here", layer.id === id || (id === "sheshan" && mountainVisited(layer.id) && layer.id !== "tokyo"));
@@ -278,7 +313,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     ctx.fillStyle = "#5ce1e6";
     ctx.beginPath(); ctx.arc(nx, axisY, 7, 0, Math.PI * 2); ctx.fill();
 
-    drawHero(ctx, cx, cy, layer, close);
+    drawHero(ctx, cx, cy, layer, close, { arrived: ends.arrived, w, h });
+    if (ends.arrived) drawEndpointArrival(ctx, w, h, ends);
 
     const powEl = readout.querySelector("#pow");
     const nameEl = readout.querySelector("#lname");
@@ -323,9 +359,32 @@ export function renderZoom(app, { goHome, onDone } = {}) {
 
   function maybeAsk() {
     if (asked) return;
-    if (level <= 1 && canAskOrder(visited)) askOrder();
-    else if (level === 2 && canAskDecades(visited)) askDecades();
-    else if (level >= 3 && visited.has("tokyo") && visited.has("paris")) askTimes();
+    if (cruiseGoal != null) return;
+    const kind = nextZoomAsk(level, visited, store.askedKeys());
+    if (kind === "order") askOrder();
+    else if (kind === "decades") askDecades();
+    else if (kind === "times") askTimes();
+  }
+
+  function celebrateEndpoint(stop) {
+    if (!stop || store.hasAsked("zoom:arrived:" + stop.id)) return;
+    store.rememberAsked("zoom:arrived:" + stop.id);
+    asked = true;
+    auto = false;
+    const title = stop.id === "planck" ? "到了！这是最小的普朗克长度" : "到了！这是能看到的整个宇宙";
+    const body = stop.correlate || stop.blurb || "";
+    talk(title + "。" + body);
+    const prefer = stop.id === "planck" ? "c-planck" : "c-universe";
+    afterReveal("zoom", () => offerContinue(s, {
+      title,
+      body: body + "还可以再走一站，或从头再走一遍。",
+      tone: "ok",
+      goHome,
+      actions: [
+        { label: "继续走", kind: "ok", onClick: () => { asked = false; auto = true; } },
+        { label: "从头走", onClick: () => { asked = false; jumpTo("planck", true, { fromStart: true }); } },
+      ],
+    }), { prefer, force: true, allowEndpoints: true });
   }
 
   function afterZoomQuestion(ok, line) {
@@ -344,6 +403,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function askOrder() {
     asked = true;
     auto = false;
+    store.rememberAsked("zoom:order");
     const opts = zoomL1OrderChoices();
     const box = promptBox("从小到大，哪一行是对的？", "听一听，再点那一行图画。", opts, (c) => {
       store.recordAnswer("zoom", !!c.ok);
@@ -359,6 +419,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function askDecades() {
     asked = true;
     auto = false;
+    store.rememberAsked("zoom:decades");
     const box = promptBox("从你的身高到一座山，大约差几个 10 倍？", "数一数中间经过了几层。", [
       { label: "大约 2 个 10 倍", ok: true, icon: "⛰️" },
       { label: "大约 10 个 10 倍" },
@@ -377,6 +438,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function askTimes() {
     asked = true;
     auto = false;
+    store.rememberAsked("zoom:times");
     const box = promptBox("去巴黎比去东京远几个 10 倍？", "差大约 5 倍，还不到一个 10 倍。", [
       { label: "不到一个 10 倍", ok: true },
       { label: "大约 10 倍" },
@@ -396,6 +458,38 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); unPinch(); };
   app.replaceChildren(s);
   store.markModePlayed("zoom");
+}
+
+export function zoomSnapLog(logS, target, { minL, maxL } = {}) {
+  const ls = Number(logS), t = Number(target);
+  if (!Number.isFinite(ls)) return t;
+  if (Number.isFinite(minL) && (t <= minL + 1e-6) && ls <= minL + 0.08) return minL;
+  if (Number.isFinite(maxL) && (t >= maxL - 1e-6) && ls >= maxL - 0.08) return maxL;
+  if (Number.isFinite(t) && Math.abs(ls - t) < 0.04) return t;
+  return ls;
+}
+
+export function zoomEndpointState(logS, { minL, maxL } = {}) {
+  const ls = Number(logS);
+  const atPlanck = Number.isFinite(minL) && ls <= minL + 0.08;
+  const atUniverse = Number.isFinite(maxL) && ls >= maxL - 0.08;
+  return {
+    atPlanck,
+    atUniverse,
+    arrived: atPlanck || atUniverse,
+    id: atPlanck ? "planck" : atUniverse ? "universe" : null,
+    title: atPlanck ? "到了！这是最小的普朗克长度" : atUniverse ? "到了！这是能看到的整个宇宙" : "",
+  };
+}
+
+export function nextZoomAsk(level, visited, askedKeys = []) {
+  const asked = new Set(askedKeys || []);
+  const has = (id) => (visited && (visited.has?.(id) || (Array.isArray(visited) && visited.includes(id))));
+  const kind = zoomAskKind(level);
+  if (kind === "order" && canAskOrder(visited) && !asked.has("zoom:order")) return "order";
+  if (kind === "decades" && canAskDecades(visited) && !asked.has("zoom:decades")) return "decades";
+  if (kind === "times" && has("tokyo") && has("paris") && !asked.has("zoom:times")) return "times";
+  return null;
 }
 
 export function prettyMetres(m) {
@@ -755,11 +849,28 @@ function sup(n) {
   return String(n).split("").map((c) => map[c] || c).join("");
 }
 
-function drawHero(ctx, cx, cy, layer, close) {
+function drawEndpointArrival(ctx, w, h, ends) {
+  if (!ends || !ends.arrived) return;
+  ctx.save();
+  ctx.fillStyle = "rgba(7,16,24,0.28)";
+  ctx.fillRect(0, 0, w, 110);
+  ctx.fillStyle = "#f5c84c";
+  ctx.font = "800 34px -apple-system, PingFang SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText(ends.title, w / 2, 18);
+  ctx.fillStyle = "#f4efe4";
+  ctx.font = "700 18px -apple-system, PingFang SC, sans-serif";
+  ctx.fillText(ends.atPlanck ? "不能再小了" : "不能再大了", w / 2, 62);
+  ctx.restore();
+}
+
+function drawHero(ctx, cx, cy, layer, close, opts = {}) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.globalAlpha = close ? 1 : 0.7;
   const id = layer.id;
+  const arrived = !!(opts && opts.arrived);
   if (id === "me") {
     ctx.font = "120px -apple-system";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -819,11 +930,43 @@ function drawHero(ctx, cx, cy, layer, close) {
   } else if (id === "sheshan" || id === "huangshan" || id === "fuji" || id === "everest") {
     drawMountainPair(ctx, 0, 30, 110, { snow: id !== "sheshan", color: "#2a6a55" });
   } else if (id === "planck") {
-    ctx.fillStyle = "#f5c84c";
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(245,200,76,0.5)"; ctx.lineWidth = 2;
-    for (let i = 1; i <= 4; i++) { ctx.beginPath(); ctx.arc(0, 0, 10 + i * 14, 0, Math.PI * 2); ctx.stroke(); }
-  } else if (id === "universe" || id === "milkyway" || id === "andromeda" || id === "laniakea" || id === "filament") {
+    // Almost-empty void with one barely-there speck — unmistakable "smallest".
+    ctx.fillStyle = arrived ? "#fff4c2" : "#f5c84c";
+    ctx.shadowColor = "#f5c84c";
+    ctx.shadowBlur = arrived ? 28 : 8;
+    ctx.beginPath(); ctx.arc(0, 0, arrived ? 4 : 6, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(245,200,76," + (arrived ? "0.85" : "0.5") + ")";
+    ctx.lineWidth = arrived ? 3 : 2;
+    for (let i = 1; i <= (arrived ? 7 : 4); i++) { ctx.beginPath(); ctx.arc(0, 0, 10 + i * (arrived ? 18 : 14), 0, Math.PI * 2); ctx.stroke(); }
+    if (arrived) {
+      ctx.fillStyle = "#f5c84c";
+      ctx.font = "800 22px -apple-system, PingFang SC, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("最小", 0, 10 + 7 * 18 + 8);
+      ctx.textBaseline = "alphabetic";
+    }
+  } else if (id === "universe") {
+    // Vast field of galaxies — unmistakable "largest".
+    const n = arrived ? 160 : 70;
+    for (let i = 0; i < n; i++) {
+      const a = i * 2.399, r = (i * 19) % (arrived ? 160 : 90);
+      ctx.fillStyle = "rgba(244,239,228," + (0.25 + (i % 5) * 0.14) + ")";
+      ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r * (arrived ? 0.62 : 0.45), arrived ? 2.2 : 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(92,225,230," + (arrived ? "0.7" : "0.35") + ")";
+    ctx.lineWidth = arrived ? 4 : 2;
+    ctx.beginPath(); ctx.ellipse(0, 0, arrived ? 150 : 90, arrived ? 70 : 36, 0.4, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "rgba(245,200,76,0.45)";
+    ctx.beginPath(); ctx.ellipse(0, 0, arrived ? 110 : 60, arrived ? 48 : 22, -0.2, 0, Math.PI * 2); ctx.stroke();
+    if (arrived) {
+      ctx.fillStyle = "#f5c84c";
+      ctx.font = "800 22px -apple-system, PingFang SC, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("最大", 0, (arrived ? 70 : 36) + 28);
+    }
+  } else if (id === "milkyway" || id === "andromeda" || id === "laniakea" || id === "filament") {
     for (let i = 0; i < 40; i++) {
       const a = i * 1.7, r = 10 + (i * 17) % 80;
       ctx.fillStyle = "rgba(244,239,228," + (0.3 + (i % 5) * 0.12) + ")";

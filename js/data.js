@@ -118,8 +118,9 @@ export const DEFAULT_TRIPS = [
 
 /**
  * Speeds in km/h. These are labelled ASSUMPTIONS on screen and are editable.
+ * One consistent set used in the race, HUD, copy, and world cards:
+ * - 走路 5: a child's unhurried walk (not a measured stride test).
  * - 自行车 15: typical leisure pace for a child on the flat (not a race).
- * - 滑雪 30: recreational downhill average, not a race time.
  * - 汽车 120: common passenger-car limit on many Chinese expressways.
  * - 高铁 350: CR400 Fuxing design/operating speed on some high-speed lines.
  * - 飞机 850: typical jet cruise true airspeed (Mach ~0.78–0.85 is ~800–900).
@@ -128,8 +129,8 @@ export const DEFAULT_TRIPS = [
  * "为什么骑车去不了东京？".
  */
 export const DEFAULT_RACERS = [
+  { id: "walk", name: "走路", nameEn: "Walk", kmh: 5, color: "#c9f0a8", emoji: "🚶" },
   { id: "bike", name: "自行车", nameEn: "Bicycle", kmh: 15, color: "#7dffb3", emoji: "🚲" },
-  { id: "ski", name: "滑雪", nameEn: "Ski", kmh: 30, color: "#9ad4ff", emoji: "🎿" },
   { id: "car", name: "汽车", nameEn: "Car", kmh: 120, color: "#ffd56a", emoji: "🚗" },
   { id: "hsr", name: "高铁", nameEn: "High-speed rail", kmh: 350, color: "#ff7a59", emoji: "🚄" },
   { id: "plane", name: "飞机", nameEn: "Aeroplane", kmh: 850, color: "#5ce1e6", emoji: "✈️" },
@@ -260,21 +261,27 @@ function makeHillProfile({ lengthKm, peakM, peakAt, startM, bumps = [] }) {
       const g = Math.exp(-((t - c) * (t - c)) / (2 * w * w));
       elev = Math.max(elev, startM + (h - startM) * g);
     }
+    // A short official summit ridge, so arriving at the peak is not instantly downhill.
+    const plateau = Math.max(1.6 / n, 0.02);
+    const onPlateau = Math.abs(t - peakAt) <= plateau;
     // Tiny path roughness, but never let it move the official peak.
-    const nearPeak = Math.abs(t - peakAt) < 1 / n;
-    if (!nearPeak) elev += Math.sin(t * 37.7) * Math.min(3, peakM * 0.0006);
-    pts.push({ distKm: dist, elevM: Math.max(0, elev) });
+    if (!onPlateau) elev += Math.sin(t * 37.7) * Math.min(3, peakM * 0.0006);
+    if (onPlateau) elev = peakM;
+    pts.push({ distKm: dist, elevM: Math.max(0, elev), plateau: onPlateau });
   }
   if (pts.length) {
     pts[0].elevM = Math.max(0, startM);
+    pts[0].plateau = false;
     let pi = 0, best = Infinity;
     for (let i = 0; i < pts.length; i++) {
       const d = Math.abs(pts[i].distKm / Math.max(1e-9, lengthKm) - peakAt);
       if (d < best) { best = d; pi = i; }
     }
     pts[pi].elevM = peakM;
+    pts[pi].plateau = true;
     for (let i = 0; i < pts.length; i++) {
-      if (i !== pi) pts[i].elevM = Math.min(pts[i].elevM, peakM - 0.51);
+      if (pts[i].plateau) pts[i].elevM = peakM;
+      else if (i !== pi) pts[i].elevM = Math.min(pts[i].elevM, peakM - 0.51);
     }
   }
   return pts;
@@ -317,12 +324,12 @@ export const TASK_BANK = [
   { id: "t08", mode: "flight", level: 4, zh: "如果飞机一直是现在这个速度，飞完地球一圈要多久？", en: "At this cruising speed, how long would a loop around the Earth take?" },
   { id: "t09", mode: "flight", level: 5, zh: "比较两条航线：高度和温度的变化规律是一样的吗？", en: "Compare the two routes: does height and temperature follow the same rule?" },
   { id: "t10", mode: "flight", level: 5, zh: "你能用自己的话说说：飞得越高，外面的气温怎样变？", en: "In your own words: as we fly higher, what happens to the outside temperature?" },
-  { id: "t11", mode: "race", level: 3, zh: "今天看看滑雪去东京要几天？先猜，再看比赛。", en: "How many days would it take to ski to Tokyo? Guess, then watch the race." },
+  { id: "t11", mode: "race", level: 3, zh: "今天看看骑自行车去东京要几天？先猜，再看。", en: "How many days would it take to bike to Tokyo? Guess, then watch." },
   { id: "t12", mode: "race", level: 1, zh: "自行车和汽车，谁先从家到学校？先选一个。", en: "Bike or car: who gets from home to school first? Pick one." },
   { id: "t13", mode: "race", level: 2, zh: "汽车和高铁去机场，谁更快？快多少？", en: "Car or high-speed train to the airport: who is faster, and by how much?" },
   { id: "t14", mode: "race", level: 2, zh: "飞机比自行车快多少倍？先想一个整数。", en: "How many times faster is the plane than the bike? Think of a whole number." },
   { id: "t15", mode: "race", level: 3, zh: "骑自行车去东京，要几个小时？先猜，再揭晓。", en: "How many hours to cycle to Tokyo? Guess, then reveal." },
-  { id: "t16", mode: "race", level: 3, zh: "滑雪去巴黎，大概要几天？", en: "Roughly how many days to ski to Paris?" },
+  { id: "t16", mode: "race", level: 3, zh: "骑自行车去巴黎，大概要几天？", en: "Roughly how many days to bike to Paris?" },
   { id: "t17", mode: "race", level: 4, zh: "如果只有 2 小时，汽车能走多远？和去学校比一比。", en: "In just 2 hours, how far can a car go? Compare that with the trip to school." },
   { id: "t18", mode: "race", level: 4, zh: "高铁 1 小时，飞机 1 小时，哪个走得更远？远多少？", en: "One hour on the high-speed train, one hour on the plane: who goes farther, and by how much?" },
   { id: "t19", mode: "race", level: 5, zh: "去东京要正好 5 小时，速度得是多少？", en: "To reach Tokyo in exactly 5 hours, how fast would you have to go?" },
@@ -393,6 +400,8 @@ export const CARD_TEMPLATES = [
     backTitle: "更远的一趟", back: "上海到巴黎大约 9,287 公里，比去东京远大约 5.3 倍。" },
   { id: "c-lapse", title: "每升高 1 公里", value: "大约凉 6.5°C", mode: "flight",
     backTitle: "为什么高空很冷", back: "飞机飞在大约 11 公里高的地方。每往上 1 公里，外面大约再凉 6.5°C。" },
+  { id: "c-walk", title: "走路", value: "大约 5 公里/小时（假设）", mode: "race",
+    backTitle: "慢慢走", back: "这是用来比较的假设速度。不急的时候，走路大约一小时走 5 公里。" },
   { id: "c-bike", title: "自行车", value: "大约 15 公里/小时（假设）", mode: "race",
     backTitle: "慢慢骑", back: "这是用来比较的假设速度。从家到学校 2 公里，骑车大约要几分钟。" },
   { id: "c-plane", title: "飞机巡航", value: "大约 850 公里/小时（假设）", mode: "race",
@@ -409,6 +418,8 @@ export const CARD_TEMPLATES = [
     backTitle: "要等一会儿", back: "光从太阳到地球大约要 8 分 19 秒。比到月亮远得多。" },
   { id: "c-ly", title: "1 光年", value: "光一年跑的路", mode: "cosmos",
     backTitle: "不是一年的时间", back: "光年是路程，不是时间。是光在一年里跑过的那么远。" },
+  { id: "c-blackhole", title: "黑洞有多宽", value: "质量和宽度成正比", mode: "cosmos",
+    backTitle: "变重就变宽", back: "黑洞变重几倍，它就变得几倍宽。太阳那么重的黑洞大约 3 公里宽，人马座 A* 大约 1,270 万公里宽。" },
   { id: "c-times10", title: "十倍电梯", value: "每按一次 ×10", mode: "elevator",
     backTitle: "再乘下去", back: "1 乘 10 是 10，再乘 10 是 100。一直乘，可以从一千走到一百万，再走到一亿。" },
   { id: "c-mid", title: "数轴中点", value: "0 到 100 的中间是 50", mode: "numberline",

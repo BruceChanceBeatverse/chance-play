@@ -1,7 +1,7 @@
 import { store } from "../store.js";
 import { talk } from "../audio.js";
 import {
-  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint,
+  el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, toast, offerContinue, playHint, isRevealOpen,
 } from "../ui.js";
 import {
   airportByCode, routeDistanceKm,
@@ -138,12 +138,14 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
     const ts = now || performance.now();
     const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
     lastTs = ts;
-    if (frozen) hint.dismiss();
-    if (!dragging && !frozen && progress < 1) {
-      progress = autoFlightProgress(progress, dt, { dragging, frozen });
+    const revealOpen = isRevealOpen();
+    const held = frozen || revealOpen;
+    if (held) hint.dismiss();
+    if (!dragging && !held && progress < 1) {
+      progress = autoFlightProgress(progress, dt, { dragging, frozen: held });
       maybeAsk();
     }
-    if (!arrived && progress >= 0.995) maybeArrive();
+    if (!arrived && progress >= 0.995 && !revealOpen) maybeArrive();
     const { ctx, w, h } = fitCanvas(canvas);
     const { view } = project(from.lon, from.lat, w, h);
     drawWater(ctx, w, h, view);
@@ -181,18 +183,20 @@ export function renderFlight(app, { goHome, tripId, onDone, firstPlay = false } 
 
   const unbind = bindDrag(canvas, {
     down(pt) {
-      dragging = true;
       hint.dismiss();
+      // A world card or mid-flight question must not move the plane.
+      if (!flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) return;
+      dragging = true;
       const { width: w, height: h } = canvas.getBoundingClientRect();
       progress = nearestProgress(pt.x, pt.y, w, h);
     },
     move(pt) {
-      if (!dragging || frozen) return;
+      if (!dragging || !flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) return;
       const { width: w, height: h } = canvas.getBoundingClientRect();
       progress = nearestProgress(pt.x, pt.y, w, h);
       maybeAsk();
     },
-    up() { dragging = false; maybeAsk(); },
+    up() { dragging = false; if (flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) maybeAsk(); },
   });
 
   function resumeFlight() {
@@ -361,6 +365,18 @@ function autoAsk(level) {
 /** Mid-route quizzes must resume the flight, not end it. Arrival only at the destination. */
 export function afterQuizFlightAction(progress) {
   return (Number(progress) >= 0.995) ? "arrive" : "resume";
+}
+
+/** While a card or question is up, leave the plane where it was. */
+export function flightPointerShouldSeek({ frozen = false, revealOpen = false, arrived = false } = {}) {
+  return !frozen && !revealOpen && !arrived;
+}
+
+/** Dismissing a mid-flight card keeps the same progress; it must not jump to arrival. */
+export function flightProgressAfterCard(progressBefore) {
+  const p = Number(progressBefore);
+  if (!Number.isFinite(p)) return 0;
+  return Math.max(0, Math.min(1, p));
 }
 
 function shuffle(arr) {

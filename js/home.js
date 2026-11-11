@@ -90,6 +90,11 @@ export function pickTodayTask(day, st) {
   return task;
 }
 
+export function todayModeArg(task) {
+  if (!task) return null;
+  return { id: task.mode, taskId: task.id };
+}
+
 function startToday(go, task) {
   unlockAudio();
   playParentTask(task);
@@ -107,7 +112,7 @@ function startToday(go, task) {
     talk("今天自由探索。想去哪一站，你自己选。");
     return;
   }
-  go("mode", task.mode);
+  go("mode", todayModeArg(task));
 }
 
 function showLockExplain(host, msg) {

@@ -373,6 +373,7 @@ export function cardArtKind(id) {
     case "c-paris-flight": return "route-cdg";
     case "c-route": return "halfway-line";
     case "c-lapse": return "sky-alt";
+    case "c-walk": return "racer-walk";
     case "c-bike": return "racer-bike";
     case "c-plane": return "racer-plane";
     case "c-hsr": return "hsr";
@@ -388,6 +389,7 @@ export function cardArtKind(id) {
     case "c-planck": return "planck";
     case "c-universe": return "universe";
     case "c-ant": return "ant";
+    case "c-blackhole": return "blackhole";
     default: return "generic";
   }
 }
@@ -408,6 +410,7 @@ export function paintCardArt(canvas, template = {}) {
   else if (kind === "route-cdg") paintRouteThumb(ctx, w, h, "PVG", "CDG", { lon0: 0, lon1: 140, lat0: 10, lat1: 60 });
   else if (kind === "halfway-line") paintHalfwayThumb(ctx, w, h);
   else if (kind === "sky-alt") paintSkyAlt(ctx, w, h);
+  else if (kind === "racer-walk") paintRacerThumb(ctx, w, h, "🚶", "#c9f0a8");
   else if (kind === "racer-bike") paintRacerThumb(ctx, w, h, "🚲", "#7dffb3");
   else if (kind === "racer-plane") paintRacerThumb(ctx, w, h, "✈️", "#5ce1e6");
   else if (kind === "hsr") paintHsrThumb(ctx, w, h);
@@ -423,6 +426,7 @@ export function paintCardArt(canvas, template = {}) {
   else if (kind === "planck") paintPlanckThumb(ctx, w, h);
   else if (kind === "universe") paintUniverseThumb(ctx, w, h);
   else if (kind === "ant") paintAntThumb(ctx, w, h);
+  else if (kind === "blackhole") paintBlackholeThumb(ctx, w, h);
   else paintGenericThumb(ctx, w, h);
 }
 
@@ -678,6 +682,19 @@ function paintAntThumb(ctx, w, h) {
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x + 26, y - 6); ctx.lineTo(x + 38, y - 16); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + 26, y - 4); ctx.lineTo(x + 40, y - 8); ctx.stroke();
+}
+
+function paintBlackholeThumb(ctx, w, h) {
+  fillSky(ctx, w, h, { top: "#120818", mid: "#08040c", bot: "#050308" });
+  const cx = w / 2, cy = h * 0.52, rad = Math.min(w, h) * 0.22;
+  ctx.strokeStyle = "#f5c84c";
+  ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rad * 1.55, rad * 0.45, 0.15, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.arc(cx, cy, Math.max(10, rad), 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(92,225,230,0.55)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 function paintGenericThumb(ctx, w, h) {

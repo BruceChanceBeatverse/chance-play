@@ -1110,6 +1110,7 @@ button, input, textarea, select { font-family: inherit; }
   background: linear-gradient(135deg, #ffe08a, #c98920);
 }
 .bead-million .bead-block.tiny { min-width: 0; }
+.bead-block.quiet { font-size: 0; color: transparent; }
 
 .zoom-ways {
   position: absolute;
@@ -1175,3 +1176,10 @@ button, input, textarea, select { font-family: inherit; }
 @media (orientation: landscape) {
   .zoom-ways { right: 180px; top: 248px; }
 }
+
+/* Mode-entry chips (e.g. 比一比速度) stay above a world-card overlay. */
+.zoom-mode-entry {
+  z-index: 12;
+  pointer-events: auto;
+}
+.zoom-mode-entry button { pointer-events: auto; }

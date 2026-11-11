@@ -102,7 +102,7 @@ export function renderElevator(app, { goHome, onDone } = {}) {
       beads.append(row, el("div", { class: "bead-million-caption" }, "10 个一亿 = 十亿"));
     } else {
       const grid = el("div", { class: "bead-million", "aria-label": "一百亿" });
-      for (let i = 0; i < 100; i++) grid.append(el("div", { class: "bead-block tiny yi" }, "亿"));
+      for (let i = 0; i < 100; i++) grid.append(el("div", { class: "bead-block tiny yi quiet" }));
       beads.append(grid, el("div", { class: "bead-million-caption" }, "100 个一亿 = 一百亿"));
     }
   }
@@ -221,4 +221,10 @@ export function elevatorQuestionLayout(w, h, { promptHeight } = {}) {
   const promptBottom = h - ELEVATOR_PROMPT_BOTTOM_PORTRAIT;
   const prompt = { top: promptBottom - ph, bottom: promptBottom };
   return { portrait: true, dock: "bottom", btn, prompt, gap: btn.top - prompt.bottom };
+}
+
+
+/** 一百亿 is a calm 10×10 grid; the caption carries the count, not each cell. */
+export function elevatorHundredYiSpec() {
+  return { cells: 100, cols: 10, cellLabel: "", caption: "100 个一亿 = 一百亿" };
 }

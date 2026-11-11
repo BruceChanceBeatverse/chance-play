@@ -99,9 +99,21 @@ export function toast(text, ms = 1800) {
 
 const ABSTRACT_CARDS = new Set(["c-mid", "c-times10"]);
 
+/** Endpoint cards are awarded on arrival, not as a random quiz surprise. */
+export const ENDPOINT_CARD_IDS = new Set(["c-planck", "c-universe"]);
+
 export function maybeDropCard(mode, opts = {}) {
   const owned = new Set(store.get().cards.map((c) => c.id));
-  const pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
+  let pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
+  if (!opts.allowEndpoints && !(opts.prefer && ENDPOINT_CARD_IDS.has(opts.prefer))) {
+    pool = pool.filter((c) => !ENDPOINT_CARD_IDS.has(c.id));
+  }
+  if (opts.prefer) {
+    const preferred = CARD_TEMPLATES.find((c) => c.id === opts.prefer && !owned.has(c.id));
+    if (preferred && (opts.force || pool.some((c) => c.id === preferred.id) || preferred.mode === mode)) {
+      pool = [preferred, ...pool.filter((c) => c.id !== preferred.id)];
+    }
+  }
   if (!pool.length) return null;
   // Occasional surprise, never promised. A little more often so a first
   // sitting can collect more than one or two cards.
@@ -109,8 +121,11 @@ export function maybeDropCard(mode, opts = {}) {
   const personal = pool.filter((c) => !ABSTRACT_CARDS.has(c.id));
   // First card the child ever gets should be a personal world fact.
   let t;
-  if (store.get().cards.length === 0) {
-    const anyPersonal = CARD_TEMPLATES.filter((c) => !ABSTRACT_CARDS.has(c.id) && !owned.has(c.id));
+  if (opts.prefer) {
+    const preferred = pool.find((c) => c.id === opts.prefer);
+    t = preferred || pool[0];
+  } else if (store.get().cards.length === 0) {
+    const anyPersonal = CARD_TEMPLATES.filter((c) => !ABSTRACT_CARDS.has(c.id) && !owned.has(c.id) && (opts.allowEndpoints || !ENDPOINT_CARD_IDS.has(c.id)));
     const preferMode = personal.length ? personal : anyPersonal;
     t = preferMode[0] || pool[0];
   } else {
@@ -121,6 +136,22 @@ export function maybeDropCard(mode, opts = {}) {
   if (!added) return null;
   sfx.card();
   return t;
+}
+
+export function isRevealOpen(doc = typeof document !== "undefined" ? document : null) {
+  return !!(doc && doc.querySelector && doc.querySelector(".reveal"));
+}
+
+export function dismissReveal(doc = typeof document !== "undefined" ? document : null) {
+  if (!doc || !doc.querySelectorAll) return false;
+  const wraps = [...doc.querySelectorAll(".reveal")];
+  if (!wraps.length) return false;
+  for (const wrap of wraps) {
+    const done = wrap._onDone;
+    wrap.remove();
+    try { done?.(); } catch {}
+  }
+  return true;
 }
 
 export function cardFacePair(template) {
@@ -148,12 +179,21 @@ export function showCard(template, onDone) {
     el("div", { class: "card-inner" }, front, back),
   );
   bindCardFlip(card);
-  const doneBtn = el("button", { class: "choice ok card-keep", onClick: (e) => {
-    e.stopPropagation();
+  const close = () => {
+    if (!wrap.isConnected) return;
     wrap.remove();
     onDone?.();
+  };
+  const doneBtn = el("button", { class: "choice ok card-keep", onClick: (e) => {
+    e.stopPropagation();
+    close();
   } }, "收好");
   const wrap = el("div", { class: "reveal" }, card, doneBtn);
+  wrap._onDone = onDone;
+  // Backdrop dismiss: a card must not trap mode entry underneath it.
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap) close();
+  });
   root().append(wrap);
   requestAnimationFrame(() => paintCardArt(art, template));
   talk("一张世界卡。" + template.title + "，" + template.value + "。点卡片可以翻一面。");

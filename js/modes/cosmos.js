@@ -15,6 +15,39 @@ export function cosmosLightDestinations() {
   ];
 }
 
+export function cosmosArrivalTitle(dest) {
+  const name = (dest && dest.name) || "目的地";
+  return "光到了" + name;
+}
+
+export function cosmosArrivalTalk(dest) {
+  const name = (dest && dest.name) || "目的地";
+  const time = dest ? prettyTime(dest.seconds) : "";
+  return "光到了" + name + "。这一段光要走 " + time + "。";
+}
+
+export function cosmosCardForBeat(beat) {
+  if (beat === "hole" || beat === "blackhole") return "c-blackhole";
+  if (beat === "moon") return "c-moon";
+  if (beat === "sun") return "c-sun";
+  if (beat === "proxima") return "c-ly";
+  return null;
+}
+
+export function cosmosHolePrompt() {
+  return {
+    title: "如果黑洞变重 10 倍，它会变得多宽？",
+    body: "先想一想。先不要看上面的数字。",
+    choices: [
+      { label: "也变成 10 倍那么宽", ok: true },
+      { label: "变成 100 倍那么宽" },
+      { label: "还是一样宽" },
+    ],
+    okLine: "对。变重几倍，就变得几倍宽。",
+    noLine: "变重几倍，黑洞就变得几倍宽。",
+  };
+}
+
 export function cosmosStartButtonSpec(phase) {
   if (phase === "arrived") {
     return { label: "再看一次", className: "pill light-replay", phase: "arrived" };
@@ -225,10 +258,10 @@ function renderLight(stage, onDone, goHome) {
     applyCosmosStartButton(startBtn, "arrived");
     if (finishedOnce) return;
     finishedOnce = true;
-    talk("到了。光从" + dest.name + "到地球，要 " + prettyTime(dest.seconds) + "。");
-    const box = promptBox("光到了地球", dest.note, [{ label: "下一步", kind: "ok" }], () => {
+    talk(cosmosArrivalTalk(dest));
+    const box = promptBox(cosmosArrivalTitle(dest), dest.note, [{ label: "下一步", kind: "ok" }], () => {
       box.remove();
-      afterReveal("cosmos", () => finishMode(onDone, goHome));
+      afterReveal("cosmos", () => finishMode(onDone, goHome), { prefer: cosmosCardForBeat(dest.id) });
     });
     stage.append(box);
     store.recordAnswer("cosmos", true);
@@ -246,14 +279,14 @@ function renderHole(stage, onDone, goHome) {
   let logM = 0; // 10^logM solar masses
   const minL = 0, maxL = Math.log10(SGR_A_SOLAR_MASSES);
   const board = hud([
-    { label: "质量", value: "1 个太阳", tone: "cyan" },
-    { label: "半径 r = 2GM/c²", value: SUN_SCHWARZSCHILD_KM.toFixed(2) + " 公里", tone: "" },
+    { label: "有多重", value: "1 个太阳", tone: "cyan" },
+    { label: "有多宽", value: SUN_SCHWARZSCHILD_KM.toFixed(2) + " 公里", tone: "" },
     { label: "对照", value: "大约一座小山那么宽", tone: "mint" },
   ]);
   stage.append(board);
   const sliderWrap = el("div", { class: "bottom-bar", style: { flexDirection: "column", alignItems: "stretch" } },
     el("input", { type: "range", min: "0", max: "1000", value: "0", id: "mass", style: { width: "100%", height: "44px" } }),
-    el("div", { style: { textAlign: "center", color: "var(--muted)" } }, "向右拖：质量变大，半径按同样的倍数变大"),
+    el("div", { style: { textAlign: "center", color: "var(--muted)" } }, "向右拖，看黑洞变得多大"),
   );
   stage.append(sliderWrap);
   const range = sliderWrap.querySelector("#mass");
@@ -299,29 +332,31 @@ function renderHole(stage, onDone, goHome) {
       : mass >= 1000
         ? formatNumber(Math.round(mass)) + " 个太阳"
         : mass.toFixed(mass >= 10 ? 0 : 1) + " 个太阳";
-    board.update([massLabel, formatNumber(rKm, rKm >= 100 ? 0 : 2) + " 公里", compare(rKm)]);
+    const hideHint = !!stage.querySelector(".prompt");
+    board.update([
+      hideHint ? "？" : massLabel,
+      hideHint ? "？" : formatNumber(rKm, rKm >= 100 ? 0 : 2) + " 公里",
+      hideHint ? "？" : compare(rKm),
+    ]);
     raf = requestAnimationFrame(draw);
   };
   raf = requestAnimationFrame(draw);
-  talk("黑洞的半径，跟质量成正比。太阳质量的黑洞大约 3 公里宽。向右拖，看它变大。");
+  talk("向右拖，看黑洞变大。太阳那么重的黑洞，大约 3 公里宽。");
 
   let asked = false;
   range.addEventListener("change", () => {
     if (asked) return;
     if (logM > 2) {
       asked = true;
-      const box = promptBox("质量变成 10 倍，半径会怎样？", "公式是 r = 2GM/c²，和 M 成正比。", [
-        { label: "也变成 10 倍", ok: true },
-        { label: "变成 100 倍" },
-        { label: "不变" },
-      ], (c) => {
+      const q = cosmosHolePrompt();
+      const box = promptBox(q.title, q.body, q.choices, (c) => {
         store.recordAnswer("cosmos", !!c.ok);
         box.remove();
-        talk(c.ok ? "对。质量乘几，半径就乘几。" : "半径跟质量成正比，质量乘几，半径就乘几。");
-        afterReveal("cosmos", () => finishMode(onDone, goHome));
+        talk(c.ok ? q.okLine : q.noLine);
+        afterReveal("cosmos", () => finishMode(onDone, goHome), { prefer: "c-blackhole", force: true });
       });
       stage.append(box);
-      talk("质量变成 10 倍，半径会怎样？");
+      talk(q.title);
     }
   });
   stage._cleanup = () => { running = false; cancelAnimationFrame(raf); };

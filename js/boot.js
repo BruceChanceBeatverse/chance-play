@@ -42,6 +42,7 @@ function go(name, arg) {
       if (arg.hikeId) opts.hikeId = arg.hikeId;
       if (arg.trackId) opts.trackId = arg.trackId;
       if (arg.allRacers) opts.allRacers = arg.allRacers;
+      if (arg.taskId) opts.taskId = arg.taskId;
     }
     if (id === "flight") renderFlight(app, opts);
     else if (id === "race") renderRace(app, opts);

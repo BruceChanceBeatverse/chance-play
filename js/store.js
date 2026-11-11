@@ -44,6 +44,40 @@ function fresh() {
   };
 }
 
+
+/** Keep parent-edited speeds, but always use the current consistent racer set. */
+export function mergeRacers(stored, pack = DEFAULT_RACERS) {
+  const prev = new Map((Array.isArray(stored) ? stored : []).map((r) => [r.id, r]));
+  return pack.map((d) => {
+    const old = prev.get(d.id);
+    const row = { ...d };
+    if (d.id === "bike") {
+      // A stale store once labelled the bike 30 (the ski pace). Always keep 15.
+      row.kmh = 15;
+      return row;
+    }
+    if (old && Number.isFinite(Number(old.kmh)) && Number(old.kmh) > 0) {
+      row.kmh = Number(old.kmh);
+    }
+    return row;
+  });
+}
+
+const ASKED_SESSION_KEY = "chance-asked-session";
+function loadAskedSession() {
+  try {
+    const raw = sessionStorage.getItem(ASKED_SESSION_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list : []);
+  } catch {
+    return new Set();
+  }
+}
+let askedSession = loadAskedSession();
+function persistAskedSession() {
+  try { sessionStorage.setItem(ASKED_SESSION_KEY, JSON.stringify([...askedSession])); } catch {}
+}
+
 let state = load();
 
 function load() {
@@ -57,7 +91,7 @@ function load() {
     merged.streaks = { ...base.streaks, ...(parsed.streaks || {}) };
     merged.settings = { ...base.settings, ...(parsed.settings || {}) };
     if (!Array.isArray(merged.trips) || merged.trips.length === 0) merged.trips = base.trips;
-    if (!Array.isArray(merged.racers) || merged.racers.length === 0) merged.racers = base.racers;
+    merged.racers = mergeRacers(parsed.racers, base.racers);
     if (!Array.isArray(merged.hikes) || merged.hikes.length === 0) merged.hikes = base.hikes;
     else {
       // Schematic sample mountains always take the current pack (official peaks,
@@ -108,6 +142,8 @@ export const store = {
   },
   resetAll() {
     state = fresh();
+    askedSession = new Set();
+    persistAskedSession();
     persist();
   },
   exportBackup() {
@@ -230,6 +266,21 @@ export const store = {
     state = { ...state, sessions: [...sessions, row] };
     persist();
     return row;
+  },
+  hasAsked(key) {
+    return !!key && askedSession.has(key);
+  },
+  rememberAsked(key) {
+    if (!key) return;
+    askedSession.add(key);
+    persistAskedSession();
+  },
+  askedKeys() {
+    return [...askedSession];
+  },
+  clearAsked() {
+    askedSession = new Set();
+    persistAskedSession();
   },
 };
 

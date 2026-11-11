@@ -457,11 +457,11 @@ export const NAMED_SCALE_STOPS = [
     assumption: true, emoji: "⚽",
   },
   {
-    id: "ski-second", name: "滑雪 1 秒（假设）", metres: 30 / 3.6, kind: "speed",
-    shown: "大约 8 米",
-    blurb: "滑雪按假设的 30 公里/小时，1 秒大约滑 8 米。",
-    correlate: "比自行车快一倍（按假设速度）。不是量过你的滑雪。",
-    assumption: true, lingerMode: "race", emoji: "🎿",
+    id: "walk-second", name: "走路 1 秒（假设）", metres: 5 / 3.6, kind: "speed",
+    shown: "大约 1.4 米",
+    blurb: "走路按假设的 5 公里/小时，1 秒大约走 1.4 米。",
+    correlate: "比自行车慢，大约是假设骑车速度的三分之一。不是量过你的步子。",
+    assumption: true, lingerMode: "race", emoji: "🚶",
   },
   {
     id: "car-second", name: "汽车 1 秒（假设）", metres: 120 / 3.6, kind: "speed",
