@@ -402,6 +402,12 @@ export function cardArtKind(id) {
     case "c-sheshan": return "hill";
     case "c-huangshan": return "huangshan";
     case "c-fuji": return "fuji";
+    case "c-schlern": return "schlern";
+    case "c-dolomites": return "dolomites";
+    case "c-everest": return "everest";
+    case "c-eiffel": return "eiffel";
+    case "c-duomo": return "duomo";
+    case "c-bund": return "bund";
     case "c-earth": return "earth";
     case "c-moon": return "moon";
     case "c-sun": return "sun";
@@ -439,6 +445,12 @@ export function paintCardArt(canvas, template = {}) {
   else if (kind === "hill") paintHillThumb(ctx, w, h);
   else if (kind === "huangshan") paintHuangshanThumb(ctx, w, h);
   else if (kind === "fuji") paintFujiThumb(ctx, w, h);
+  else if (kind === "schlern") paintSchlernThumb(ctx, w, h);
+  else if (kind === "dolomites") paintDolomitesThumb(ctx, w, h);
+  else if (kind === "everest") paintEverestThumb(ctx, w, h);
+  else if (kind === "eiffel") paintEiffelThumb(ctx, w, h);
+  else if (kind === "duomo") paintDuomoThumb(ctx, w, h);
+  else if (kind === "bund") paintBundThumb(ctx, w, h);
   else if (kind === "earth") { fillSky(ctx, w, h); drawGlobe(ctx, w / 2, h / 2 + 6, Math.min(w, h) * 0.38, { lonC: 125, latC: 28 }); }
   else if (kind === "moon") paintMoonThumb(ctx, w, h);
   else if (kind === "sun") { fillSky(ctx, w, h, { top: "#1a1020", mid: "#2a1810", bot: "#071018" }); drawSun(ctx, w / 2, h / 2, Math.min(w, h) * 0.28); }
@@ -804,3 +816,61 @@ export function uniqueTimeLabels(labels) {
 }
 
 export { lerp, clamp };
+
+function paintSchlernThumb(ctx, w, h) {
+  // Distinctive flat table-top, not a sharp cone.
+  const baseY = h * 0.86, topY = h * 0.38, mid = w * 0.5;
+  ctx.fillStyle = "#3d6a4a";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.08, baseY);
+  ctx.lineTo(w * 0.28, topY + 16);
+  ctx.lineTo(w * 0.72, topY);
+  ctx.lineTo(w * 0.92, baseY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#c9b48a";
+  ctx.fillRect(w * 0.28, topY, w * 0.44, 14);
+}
+function paintDolomitesThumb(ctx, w, h) {
+  ctx.fillStyle = "#5a7a62";
+  ctx.beginPath(); ctx.moveTo(0, h * 0.86); ctx.lineTo(w * 0.25, h * 0.5); ctx.lineTo(w * 0.45, h * 0.62); ctx.lineTo(w * 0.7, h * 0.36); ctx.lineTo(w, h * 0.78); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.fill();
+  ctx.fillStyle = "#e8eef4";
+  ctx.beginPath(); ctx.moveTo(w * 0.58, h * 0.44); ctx.lineTo(w * 0.7, h * 0.36); ctx.lineTo(w * 0.8, h * 0.5); ctx.fill();
+}
+function paintEverestThumb(ctx, w, h) {
+  ctx.fillStyle = "#2a4a40";
+  ctx.beginPath(); ctx.moveTo(w * 0.05, h * 0.9); ctx.lineTo(w * 0.5, h * 0.16); ctx.lineTo(w * 0.95, h * 0.9); ctx.fill();
+  ctx.fillStyle = "#f4efe4";
+  ctx.beginPath(); ctx.moveTo(w * 0.38, h * 0.36); ctx.lineTo(w * 0.5, h * 0.16); ctx.lineTo(w * 0.64, h * 0.4); ctx.fill();
+}
+function paintEiffelThumb(ctx, w, h) {
+  ctx.strokeStyle = "#c9a227";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.28, h * 0.9); ctx.lineTo(w * 0.5, h * 0.12); ctx.lineTo(w * 0.72, h * 0.9);
+  ctx.moveTo(w * 0.36, h * 0.62); ctx.lineTo(w * 0.64, h * 0.62);
+  ctx.moveTo(w * 0.42, h * 0.4); ctx.lineTo(w * 0.58, h * 0.4);
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.12); ctx.lineTo(w * 0.5, h * 0.04); ctx.stroke();
+}
+function paintDuomoThumb(ctx, w, h) {
+  ctx.fillStyle = "#d8d2c4";
+  ctx.fillRect(w * 0.18, h * 0.55, w * 0.64, h * 0.35);
+  ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.14); ctx.lineTo(w * 0.62, h * 0.55); ctx.lineTo(w * 0.38, h * 0.55); ctx.fill();
+  ctx.fillStyle = "#f5c84c";
+  ctx.beginPath(); ctx.arc(w * 0.5, h * 0.16, 6, 0, Math.PI * 2); ctx.fill();
+}
+function paintBundThumb(ctx, w, h) {
+  const towers = [
+    [0.12, 0.42, "#ff7a59"], // pearl-ish
+    [0.34, 0.38, "#f5c84c"],
+    [0.54, 0.32, "#5ce1e6"],
+    [0.74, 0.22, "#9ad4ff"],
+  ];
+  for (const [x, top, c] of towers) {
+    ctx.fillStyle = c;
+    ctx.fillRect(w * x, h * top, w * 0.14, h * (0.88 - top));
+  }
+  ctx.fillStyle = "#1a3d5c";
+  ctx.fillRect(0, h * 0.88, w, h * 0.12);
+}

@@ -8,6 +8,7 @@ import { renderFlight } from "./flight.js";
 import { renderHike } from "./hike.js";
 import { renderRace } from "./race.js";
 import { renderCosmos } from "./cosmos.js";
+import { bi, UI, lingerShouldAutoPause, lingerButtonCopy, saveZoomResume, loadZoomResume, clearZoomResume, serializeZoomResume } from "../i18n.js";
 import {
   resolveScaleStops, nearestScaleStop, prettyScaleLine, formatScaleMetres,
   SCALE_WAYSTATIONS, PLANCK_LENGTH_M, OBSERVABLE_UNIVERSE_DIAMETER_M,
@@ -15,7 +16,7 @@ import {
 
 
 function mountainVisited(id) {
-  return id === "mountain" || id === "sheshan" || id === "huangshan" || id === "fuji";
+  return id === "mountain" || id === "fuji" || id === "schlern" || id === "dolomites" || id === "chance-climb" || id === "huangshan" || id === "sheshan" || id === "everest";
 }
 
 /** Log10 units per second while auto-cruising. ~11–12 seconds per decade, plus dwell. */
@@ -25,7 +26,7 @@ export const ZOOM_CRUISE_RATE = 0.085;
 export function zoomJumpStyle(id, { fromStart = false } = {}) {
   if (fromStart) return "start-at";
   if (id === "universe" || id === "planck") return "cruise";
-  if (id === "me" || id === "ant" || id === "sheshan" || id === "tokyo") return "hop";
+  if (id === "me" || id === "ant" || id === "fuji" || id === "oriental-pearl" || id === "tokyo") return "hop";
   return "cruise";
 }
 
@@ -61,9 +62,29 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   let pointers = 0;
   let cruiseGoal = null;
 
-  const canvas = el("canvas", { class: "fill", "aria-label": "从普朗克长度到宇宙的尺度之旅" });
+  const saved = loadZoomResume();
+  if (saved) {
+    logS = saved.logS;
+    target = saved.target;
+    cruiseDir = saved.cruiseDir;
+    cruiseGoal = saved.cruiseGoal;
+    auto = saved.auto;
+    lastDwellId = saved.lastDwellId || lastDwellId;
+    lastSpokenId = saved.lastSpokenId || "";
+    for (const id of saved.visited || []) visited.add(id);
+  }
+
+  function snapshotZoom() {
+    return serializeZoomResume({
+      logS, target, cruiseDir, cruiseGoal, auto,
+      visited: [...visited], lastDwellId, lastSpokenId,
+    });
+  }
+  function persistZoom() { saveZoomResume(snapshotZoom()); }
+
+  const canvas = el("canvas", { class: "fill", "aria-label": "从普朗克长度到宇宙的尺度之旅 / Scale journey from the Planck length to the universe" });
   s.append(canvas);
-  s.append(topbar({ title: "尺度之旅", sub: "自己会走。也可以捏，或跳到熟悉的一站", onBack: goHome }));
+  s.append(topbar({ title: UI.scaleJourney, sub: { zh: "自己会走。也可以捏，或跳到熟悉的一站", en: "It walks by itself. You can also pinch, or jump to a familiar stop" }, onBack: () => { persistZoom(); goHome?.(); } }));
   const readout = el("div", { class: "zoom-readout" },
     el("div", { class: "pow", id: "pow" }, ""),
     el("div", { class: "name", id: "lname" }, ""),
@@ -71,15 +92,15 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   );
   s.append(readout);
   const stepper = el("div", { class: "zoom-stepper" },
-    el("button", { class: "zoom-btn in", "aria-label": "缩小" }, "缩小 −"),
-    el("button", { class: "zoom-btn out", "aria-label": "放大" }, "放大 ＋"),
+    el("button", { class: "zoom-btn in", "aria-label": "缩小 / Zoom in" }, UI.shrink),
+    el("button", { class: "zoom-btn out", "aria-label": "放大 / Zoom out" }, UI.grow),
   );
   s.append(stepper);
 
   const ways = el("div", { class: "zoom-ways", "aria-label": "熟悉的站点" });
   const wayBtns = {};
   for (const w of SCALE_WAYSTATIONS) {
-    const b = el("button", { "data-id": w.id }, w.label);
+    const b = el("button", { "data-id": w.id }, w.labelEn ? bi(w.label, w.labelEn) : w.label);
     b.addEventListener("click", () => jumpTo(w.id, true));
     ways.append(b);
     wayBtns[w.id] = b;
@@ -87,16 +108,21 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   s.append(ways);
 
   const cruiseBox = el("div", { class: "zoom-cruise" });
-  const pauseBtn = el("button", { "aria-label": "暂停或继续" }, "暂停");
-  const fullBtn = el("button", {}, "从头走");
+  const pauseBtn = el("button", { "aria-label": "暂停或继续 / Pause or keep walking" }, auto ? "" : "");
+  function syncPauseLabel() {
+    pauseBtn.replaceChildren(bi(auto ? UI.pause : UI.keepGoing));
+  }
+  const fullBtn = el("button", {}, UI.fromStart);
   pauseBtn.addEventListener("click", () => toggleAuto());
   fullBtn.addEventListener("click", () => {
+    clearZoomResume();
     jumpTo("planck", true, { fromStart: true });
     auto = true;
     holdPause = false;
-    pauseBtn.textContent = "暂停";
+    syncPauseLabel();
     sfx.whoosh();
   });
+  syncPauseLabel();
   cruiseBox.append(pauseBtn, fullBtn);
   s.append(cruiseBox);
 
@@ -106,7 +132,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
   function toggleAuto() {
     auto = !auto;
     holdPause = false;
-    pauseBtn.textContent = auto ? "暂停" : "继续走";
+    syncPauseLabel();
     if (auto) talk("好，继续走。");
     else talk("先停在这里。");
   }
@@ -120,7 +146,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (mountainVisited(id)) visited.add("mountain");
     auto = true;
     holdPause = false;
-    pauseBtn.textContent = "暂停";
+    syncPauseLabel();
     sfx.tick();
     if (style === "start-at" || style === "hop") {
       target = destLog;
@@ -171,28 +197,31 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       linger.style.display = "none";
       return;
     }
-    const label = {
-      flight: stop.id === "paris" ? "飞去巴黎" : "飞去东京",
-      hike: "爬这座山",
-      race: "比一比速度",
-      cosmos: "看光要走多久",
-    }[stop.lingerMode] || "停一停";
+    const label = lingerButtonCopy(stop);
     const btn = el("button", {}, label);
     btn.addEventListener("click", () => {
       auto = false;
+      persistZoom();
       if (isRevealOpen()) dismissReveal();
+      const backToZoom = () => renderZoom(app, { goHome, onDone });
       if (stop.lingerMode === "flight") {
-        renderFlight(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), tripId: stop.tripId || "pvg-hnd" });
+        renderFlight(app, { goHome, onDone: backToZoom, tripId: stop.tripId || "pvg-hnd" });
       } else if (stop.lingerMode === "hike") {
-        renderHike(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), hikeId: stop.hikeId || "sheshan" });
+        renderHike(app, { goHome, onDone: backToZoom, hikeId: stop.hikeId || "fuji" });
       } else if (stop.lingerMode === "race") {
-        renderRace(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }), trackId: "tokyo", allRacers: true });
+        renderRace(app, { goHome, onDone: backToZoom, trackId: "tokyo", allRacers: true });
       } else if (stop.lingerMode === "cosmos") {
-        renderCosmos(app, { goHome, onDone: () => renderZoom(app, { goHome, onDone }) });
+        const destId = stop.id === "sun" ? "sun" : "moon";
+        renderCosmos(app, { goHome, onDone: backToZoom, destId, tab: "light", forceOpen: true });
       }
     });
     linger.append(btn);
     linger.style.display = "flex";
+    if (lingerShouldAutoPause(stop) && auto) {
+      auto = false;
+      holdPause = false;
+      syncPauseLabel();
+    }
   }
 
   let running = true, raf = 0, lastTs = 0;
@@ -222,7 +251,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
           cruiseDir = 1;
           dwellLeft = 8;
           auto = false;
-          pauseBtn.textContent = "继续走";
+          syncPauseLabel();
           talk("这是最小的普朗克长度。还可以再往外走一遍。");
         }
       }
@@ -247,6 +276,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     visited.add(layer.id);
     if (mountainVisited(layer.id)) visited.add("mountain");
 
+    if (close) store.markScaleStop(layer.id);
     if (close && layer.id !== lastDwellId) {
       lastDwellId = layer.id;
       const atGoal = ends.arrived || layer.id === "planck" || layer.id === "universe";
@@ -264,7 +294,7 @@ export function renderZoom(app, { goHome, onDone } = {}) {
       }
     }
     for (const [id, b] of Object.entries(wayBtns)) {
-      b.classList.toggle("here", layer.id === id || (id === "sheshan" && mountainVisited(layer.id) && layer.id !== "tokyo"));
+      b.classList.toggle("here", layer.id === id || (id === "fuji" && mountainVisited(layer.id) && layer.id !== "tokyo" && layer.id !== "oriental-pearl"));
     }
 
     const cap = zoomScaleCap(w, h, { hasPrompt, landscape });
@@ -321,9 +351,11 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     const blurbEl = readout.querySelector("#lblurb");
     const shown = close ? layer.metres : metres;
     powEl.textContent = prettyScale(shown);
-    nameEl.textContent = layer.name + (close ? "" : " 附近");
+    const nearZh = close ? "" : " 附近";
+    const nearEn = close ? "" : " nearby";
+    nameEl.replaceChildren(bi((layer.name || "") + nearZh, (layer.nameEn || layer.name || "") + nearEn));
     const extra = layer.assumption ? "" : "";
-    blurbEl.textContent = (layer.correlate || layer.blurb || "") + extra;
+    blurbEl.replaceChildren(bi((layer.correlate || layer.blurb || "") + extra, (layer.correlateEn || layer.blurbEn || "")));
 
     raf = requestAnimationFrame(draw);
   };
@@ -370,6 +402,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     if (!stop || store.hasAsked("zoom:arrived:" + stop.id)) return;
     store.rememberAsked("zoom:arrived:" + stop.id);
     store.recordJourneyComplete("zoom");
+    store.markScaleStop(stop.id);
+    if (stop.id === "universe" || stop.id === "planck") store.markScaleJourneyComplete();
     asked = true;
     auto = false;
     const title = stop.id === "planck" ? "到了！这是最小的普朗克长度" : "到了！这是能看到的整个宇宙";
@@ -455,8 +489,8 @@ export function renderZoom(app, { goHome, onDone } = {}) {
     talk("去巴黎比去东京，差几个 10 倍？");
   }
 
-  talk("从你的身高开始，尺度会自己一站一站往外走。想从最小走完全程，就点从头走。点宇宙也会一路走过去，不会跳到头。");
-  s._cleanup = () => { running = false; cancelAnimationFrame(raf); unPinch(); };
+  talk("从你的身高开始，尺度会自己一站一站往外走。想从最小走完全程，就点从头走。点宇宙也会一路走过去，不会跳到头。", "Starting from your height, the scale will walk outward stop by stop. To walk the whole line from the smallest, tap start from the beginning. Tapping the universe also walks there, and will not jump to the end.");
+  s._cleanup = () => { persistZoom(); running = false; cancelAnimationFrame(raf); unPinch(); };
   app.replaceChildren(s);
   store.markModePlayed("zoom");
 }
@@ -593,7 +627,7 @@ export function zoomL1OrderChoices() {
 export function zoomL1OrderTalk(choices = zoomL1OrderChoices()) {
   const ordinals = ["一", "二", "三", "四", "五"];
   const parts = choices.map((c, i) => "第" + (ordinals[i] || String(i + 1)) + "行是" + c.spoken);
-  return "把蚂蚁、你自己、山、去东京，按从小到大排。哪一行是对的？" + parts.join("。") + "。";
+  return "把蚂蚁、你自己、富士山、去东京，按从小到大排。哪一行是对的？" + parts.join("。") + "。";
 }
 
 export function missingZoomL1(visited) {

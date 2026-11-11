@@ -1,4 +1,5 @@
 import { sfx, talk, stopTalk } from "./audio.js";
+import { bi, isCopy, splitCopy, pairedAria, appendCopy, UI } from "./i18n.js";
 import { store } from "./store.js";
 import { MODE_META, CARD_TEMPLATES, resolveCard } from "./data.js";
 import { paintCardArt } from "./art.js";
@@ -13,12 +14,17 @@ export function el(tag, attrs = {}, ...children) {
     else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
     else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
     else if (k === "html") node.innerHTML = v;
-    else if (k === "text") node.textContent = v;
+    else if (k === "text") {
+      if (isCopy(v)) { node.replaceChildren(bi(v)); }
+      else node.textContent = v;
+    }
     else node.setAttribute(k, v === true ? "" : v);
   }
   for (const c of children.flat()) {
     if (c == null || c === false) continue;
-    node.append(c.nodeType ? c : document.createTextNode(c));
+    if (c.nodeType) node.append(c);
+    else if (isCopy(c)) node.append(bi(c));
+    else node.append(document.createTextNode(c));
   }
   return node;
 }
@@ -33,12 +39,16 @@ export function iconBtn(symbol, title, onClick) {
   return el("button", { class: "icon-btn", title, "aria-label": title, onClick: (e) => { sfx.tap(); onClick(e); } }, symbol);
 }
 
-export function topbar({ title, sub, onBack, extra } = {}) {
+export function topbar({ title, titleEn, sub, subEn, onBack, extra } = {}) {
   const bar = el("div", { class: "topbar" });
-  if (onBack) bar.append(iconBtn("←", "返回", onBack));
+  if (onBack) bar.append(iconBtn("←", pairedAria(UI.back), onBack));
   if (title) {
-    const chip = el("div", { class: "title-chip" }, title);
-    if (sub) chip.append(el("span", { class: "sub" }, sub));
+    const titleNode = isCopy(title) || titleEn ? bi(title, titleEn) : title;
+    const chip = el("div", { class: "title-chip" }, titleNode);
+    if (sub) {
+      const subNode = isCopy(sub) || subEn ? bi(sub, subEn) : sub;
+      chip.append(el("span", { class: "sub" }, subNode));
+    }
     bar.append(chip);
   }
   bar.append(el("div", { class: "spacer" }));
@@ -50,7 +60,8 @@ export function hud(items) {
   const box = el("div", { class: "hud" + (items.length === 3 ? " cols-3" : "") });
   for (const it of items) {
     const v = el("div", { class: "v" + (it.tone ? " " + it.tone : "") }, it.value);
-    box.append(el("div", { class: "stat" }, el("div", { class: "k" }, it.label), v));
+    const lab = (isCopy(it.label) || it.labelEn) ? bi(it.label, it.labelEn) : it.label;
+    box.append(el("div", { class: "stat" }, el("div", { class: "k" }, lab), v));
     it._valueEl = v;
   }
   box.update = (vals) => {
@@ -83,19 +94,20 @@ export function promptBox(title, body, choices, onPick, opts = {}) {
   const compact = opts.compact ? " compact" : "";
   const extra = opts.className ? " " + opts.className : "";
   const box = el("div", { class: "prompt" + dock + compact + extra },
-    el("h2", { text: title }),
-    body ? el("p", { text: body }) : null,
+    el("h2", {}, (isCopy(title) || opts.titleEn) ? { ...(isCopy(title) ? title : { zh: title }), en: (isCopy(title) ? title.en : opts.titleEn) } : title),
+    body ? el("p", {}, (isCopy(body) || opts.bodyEn) ? { ...(isCopy(body) ? body : { zh: body }), en: (isCopy(body) ? body.en : opts.bodyEn) } : body) : null,
   );
   if (choices && choices.length) {
     const row = el("div", { class: "choices" });
     for (const c of choices) {
       const pictorial = Array.isArray(c.icons) && c.icons.length;
+      const copy = (c.label || c.zh || c.labelEn || c.en) ? { zh: c.label ?? c.zh ?? "", en: c.labelEn ?? c.en ?? "" } : null;
       const content = pictorial
         ? el("span", { class: "pictorial-row", "aria-hidden": "true" }, c.icons.join(" → "))
-        : ((c.icon ? c.icon + " " : "") + c.label);
+        : (copy ? [c.icon ? c.icon + " " : null, bi(copy)] : ((c.icon ? c.icon + " " : "") + c.label));
       row.append(el("button", {
         class: "choice" + (c.kind ? " " + c.kind : "") + (pictorial ? " pictorial" : ""),
-        "aria-label": c.ariaLabel || c.label,
+        "aria-label": c.ariaLabel || pairedAria(c.label, c.labelEn || c.en),
         onClick: () => { sfx.tap(); onPick(c); },
       }, content));
     }
@@ -106,7 +118,7 @@ export function promptBox(title, body, choices, onPick, opts = {}) {
 
 export function toast(text, ms = 1800) {
   document.querySelectorAll(".toast").forEach((n) => n.remove());
-  const t = el("div", { class: "toast", text });
+  const t = el("div", { class: "toast" }, text);
   root().append(t);
   setTimeout(() => t.remove(), ms);
 }
@@ -118,7 +130,7 @@ export const ENDPOINT_CARD_IDS = new Set(["c-planck", "c-universe"]);
 
 export function maybeDropCard(mode, opts = {}) {
   const owned = new Set(store.get().cards.map((c) => c.id));
-  let pool = CARD_TEMPLATES.filter((c) => c.mode === mode && !owned.has(c.id));
+  let pool = CARD_TEMPLATES.filter((c) => c && c.mode === mode && !owned.has(c.id));
   if (Array.isArray(opts.allowOnly) && opts.allowOnly.length) {
     pool = pool.filter((c) => opts.allowOnly.includes(c.id));
   }
@@ -126,7 +138,7 @@ export function maybeDropCard(mode, opts = {}) {
     pool = pool.filter((c) => !ENDPOINT_CARD_IDS.has(c.id));
   }
   if (opts.prefer) {
-    const preferred = CARD_TEMPLATES.find((c) => c.id === opts.prefer && !owned.has(c.id));
+    const preferred = CARD_TEMPLATES.find((c) => c && c.id === opts.prefer && !owned.has(c.id));
     if (preferred && (opts.force || pool.some((c) => c.id === preferred.id) || preferred.mode === mode)) {
       pool = [preferred, ...pool.filter((c) => c.id !== preferred.id)];
     }
@@ -176,15 +188,15 @@ export function cardFacePair(template) {
   const art = el("canvas", { class: "card-art", "aria-hidden": "true" });
   const front = el("div", { class: "card-face card-front" },
     art,
-    el("div", { class: "k" }, "一张世界卡"),
-    el("div", { class: "t" }, t.title || ""),
-    el("div", { class: "v" }, t.value || ""),
-    el("p", { class: "card-hint", text: "点卡片翻一面" }),
+    el("div", { class: "k" }, UI.worldCard),
+    el("div", { class: "t" }, { zh: t.title || "", en: t.titleEn || "" }),
+    el("div", { class: "v" }, t.valueEn ? { zh: t.value || "", en: t.valueEn } : (t.value || "")),
+    el("p", { class: "card-hint" }, UI.flipHint),
   );
   const back = el("div", { class: "card-face card-back" },
-    el("div", { class: "k" }, "背面"),
-    el("div", { class: "t" }, t.backTitle || "再看一眼"),
-    el("p", { class: "card-back-note", text: t.back || "这是你世界里的一个数。再点可以翻回去。" }),
+    el("div", { class: "k" }, UI.cardBack),
+    el("div", { class: "t" }, { zh: t.backTitle || "再看一眼", en: t.backTitleEn || "Look again" }),
+    el("p", { class: "card-back-note" }, { zh: t.back || "这是你世界里的一个数。再点可以翻回去。", en: t.backEn || "This is a number from your world. Tap again to flip it back." }),
   );
   return { art, front, back, template: t };
 }
@@ -204,7 +216,7 @@ export function showCard(template, onDone) {
   const doneBtn = el("button", { class: "choice ok card-keep", onClick: (e) => {
     e.stopPropagation();
     close();
-  } }, "收好");
+  } }, UI.keepCard);
   const wrap = el("div", { class: "reveal" }, card, doneBtn);
   wrap._onDone = onDone;
   // Backdrop dismiss: a card must not trap mode entry underneath it.
@@ -213,7 +225,7 @@ export function showCard(template, onDone) {
   });
   root().append(wrap);
   requestAnimationFrame(() => paintCardArt(art, template));
-  talk("一张世界卡。" + template.title + "，" + template.value + "。点卡片可以翻一面。");
+  talk("一张世界卡。" + (template.title || "") + "，" + (template.value || "") + "。点卡片可以翻一面。", "A world card. " + (template.titleEn || template.title || "") + ", " + (template.valueEn || template.value || "") + ". Tap the card to flip it.");
 }
 
 /** Settled class list so a flipped card lands square, not in mid-flip perspective. */
@@ -260,16 +272,17 @@ export function offerContinue(host, { title, body, tone = "info", actions = [], 
   if (!host) return null;
   host.querySelectorAll(".continue-box").forEach((n) => n.remove());
   const box = el("div", { class: "prompt dock-bottom continue-box tone-" + tone });
-  if (title) box.append(el("h2", { text: title }));
-  if (body) box.append(el("p", { text: body }));
+  if (title) box.append(el("h2", {}, isCopy(title) ? title : title));
+  if (body) box.append(el("p", {}, isCopy(body) ? body : body));
   const row = el("div", { class: "choices" });
   const all = actions.slice();
-  if (goHome) all.push({ label: "回主页", onClick: goHome });
+  if (goHome) all.push({ label: UI.goHome.zh, labelEn: UI.goHome.en, onClick: goHome });
   for (const a of all) {
+    const lab = (isCopy(a) || a.labelEn) ? { zh: a.zh || a.label, en: a.en || a.labelEn } : a.label;
     row.append(el("button", {
       class: "choice" + (a.kind ? " " + a.kind : ""),
       onClick: () => { sfx.tap(); box.remove(); a.onClick?.(); },
-    }, a.label));
+    }, lab));
   }
   box.append(row);
   host.append(box);
@@ -508,7 +521,7 @@ export function questionHudLayout(w, h, { items = 4 } = {}) {
 
 
 export function playHint(text) {
-  const node = el("div", { class: "play-hint", text, role: "status" });
+  const node = el("div", { class: "play-hint", role: "status" }, text);
   let gone = false;
   node.dismiss = () => {
     if (gone) return;

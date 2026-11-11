@@ -24,8 +24,11 @@ export function childPlayableTrips() {
 export function childFlightPickerCopy() {
   return {
     sub: "去东京羽田、去巴黎",
+    subEn: "To Tokyo Haneda, to Paris",
     talk: "选一趟飞行。去东京羽田，或去巴黎。",
+    talkEn: "Pick a flight. To Tokyo Haneda, or to Paris.",
     lead: "点一张图，就开始飞。",
+    leadEn: "Tap a picture, and the plane starts flying.",
   };
 }
 
@@ -48,14 +51,23 @@ export function playableHikes() {
 
 /** Sample mountains only — imported GPX stays off the child picker. */
 export function childPlayableHikes() {
-  return playableHikes().filter((h) => h.sample !== false);
+  const list = playableHikes().filter((h) => h.sample !== false && h.child !== false);
+  const order = ["fuji", "dolomites"];
+  return list.sort((a, b) => {
+    const ia = order.indexOf(a.id);
+    const ib = order.indexOf(b.id);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
 }
 
 export function childHikePickerCopy() {
   return {
-    sub: "佘山、黄山、富士山",
-    talk: "选一座山。有佘山、黄山和富士山。",
-    lead: "点一座山，把小人拖上去。示例山会标明不是你的足迹。",
+    sub: "富士山、多洛米蒂的一天",
+    subEn: "Mount Fuji, a day in the Dolomites",
+    talk: "选一座山。有你来过的富士山，还有你能走的那种多洛米蒂的路。",
+    talkEn: "Pick a mountain. There is Fuji, which you have been to, and a Dolomites walk of the kind you can do.",
+    lead: "点一座山，小人会自己走。示例山路会标明还不是你自己的足迹。",
+    leadEn: "Tap a mountain, and the little walker will start moving. Sample paths are labelled as not your own GPS track.",
   };
 }
 
@@ -68,8 +80,8 @@ export function resolveHike(hikeId) {
   return null;
 }
 
-/** Default first-play hike: Shanghai 佘山, still clearly a sample profile. */
-export const FIRST_PLAY_HIKE_ID = "sheshan";
+/** Default first-play hike: Fuji, which Chance has been to. Path is still schematic. */
+export const FIRST_PLAY_HIKE_ID = "fuji";
 
 export function shouldShowHikePicker({ hikeId, firstPlay } = {}) {
   return !firstPlay && !hikeId;
@@ -109,9 +121,13 @@ export function thumbViewForRoute(from, to) {
 export function flightAssumptionCopy(kmText) {
   return {
     sub: (kmText ? kmText + " · " : "") + "巡航 850 公里/小时（假设）",
+    subEn: (kmText ? kmText + " · " : "") + "cruise 850 km/h (assumed)",
     remainLabel: "还要多久",
+    remainLabelEn: "Time left",
     altLabel: "高度（假设）",
+    altLabelEn: "Height (assumed)",
     note: "时间和高度按巡航 850 公里/小时、大约 11 公里来算，都是假设值。",
+    noteEn: "Time and height use a cruise of 850 km/h and about 11 km. Both are assumed figures.",
   };
 }
 

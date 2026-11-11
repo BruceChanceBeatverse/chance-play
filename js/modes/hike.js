@@ -3,6 +3,7 @@ import { talk } from "../audio.js";
 import { el, screen, topbar, hud, promptBox, fitCanvas, bindDrag, afterReveal, offerContinue, markAnswer, toast, questionHudLayout, HUD_LAYOUT, playHint, goToScaleJourney } from "../ui.js";
 import { hikeTempC, formatTemp, clamp } from "../geo.js";
 import { shouldShowHikePicker, resolveHike, renderHikePicker, switchRouteButton, FIRST_PLAY_HIKE_ID } from "../pickers.js";
+import { bi, UI, clampSeekToBeats } from "../i18n.js";
 
 
 /** Watchable play duration for the full trail (not a real hike). */
@@ -148,7 +149,79 @@ export const HIKE_MOUNTAIN_CARDS = {
   sheshan: "c-sheshan",
   huangshan: "c-huangshan",
   fuji: "c-fuji",
+  dolomites: "c-dolomites",
 };
+
+export function hikeTrailNote(hike) {
+  if (!hike) return { zh: "示例山路，还不是你自己走的足迹", en: "A sample path, not your own GPS track yet" };
+  if (hike.id === "fuji") {
+    return { zh: "你来过这座山。官方 3,776 米。你记得它有三千八百多米。这条线还不是你自己走的足迹。", en: "You've been to this mountain. Officially 3,776 m. You remember it as more than 3,800 m. This path is not your own GPS track." };
+  }
+  if (hike.id === "dolomites" || hike.livedAbility) {
+    return { zh: "这是你能走的那种路：一次大约 12 公里，爬升大约 900 米。不是一条量过的足迹。", en: "This is the kind of walk you can do: about 12 km, with about 900 m of climbing. It is not a measured GPS track." };
+  }
+  if (hike.id === "sheshan" || hike.contrastOnly) {
+    return { zh: "上海附近一座大约 99 米的小山，用来比一比。不是你爬过的山。", en: "A small hill near Shanghai, about 99 m, for contrast. Not a mountain you have climbed." };
+  }
+  if (hike.sample) return { zh: "示例山路，还不是你自己走的足迹", en: "A sample path, not your own GPS track yet" };
+  return { zh: "你的轨迹", en: "Your track" };
+}
+
+export function hikeCelebrateCopy(hike, officialPeak) {
+  const name = String(hike?.name || "").replace("（示例）", "");
+  const nameEn = hike?.nameEn || name;
+  if (hike && (hike.id === "dolomites" || hike.livedAbility)) {
+    const gain = Math.round(hike.gainM || 900);
+    const km = hike.lengthKm || 12;
+    return {
+      bannerZh: "走完了！",
+      bannerEn: "You finished it!",
+      title: { zh: "走完了", en: "You finished it" },
+      body: { zh: "大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。不是一条量过的足迹。", en: "About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. It is not a measured GPS track." },
+      talkZh: "走完了！大约 " + km + " 公里，爬升大约 " + gain + " 米。这正是你会走的那种路。不是一条量过的足迹。",
+      talkEn: "You finished it! About " + km + " km, with about " + gain + " m of climbing. This is the kind of walk you can do. It is not a measured GPS track.",
+      smallZh: name + "，大约 " + km + " 公里，爬升大约 " + gain + " 米",
+      smallEn: nameEn + ", about " + km + " km, about " + gain + " m of climbing",
+    };
+  }
+  const peak = Math.round(officialPeak);
+  const fujiNote = hike && hike.id === "fuji"
+    ? "官方高度 3,776 米。你记得它有三千八百多米，差不多就是这个数。"
+    : "";
+  const fujiEn = hike && hike.id === "fuji"
+    ? " The official height is 3,776 m. You remember it as more than 3,800 m, which is about the same number."
+    : "";
+  const trail = hike && hike.sample === false ? "" : "这是示例山路，还不是你自己走的足迹。";
+  const trailEn = hike && hike.sample === false ? "" : " This is a sample path, not your own GPS track yet.";
+  const contrast = hike && (hike.id === "sheshan" || hike.contrastOnly) ? "这不是你爬过的山，只用来比一比。" : "";
+  const contrastEn = hike && (hike.id === "sheshan" || hike.contrastOnly) ? " This is not a mountain you have climbed; it is only for contrast." : "";
+  return {
+    bannerZh: "到山顶了！",
+    bannerEn: "You reached the top!",
+    title: { zh: "到山顶了", en: "You reached the top" },
+    body: { zh: name + "最高 " + peak + " 米。" + fujiNote + trail + contrast, en: nameEn + " is " + peak + " m at the top." + fujiEn + trailEn + contrastEn },
+    talkZh: "到山顶了！最高 " + peak + " 米。" + fujiNote + trail + contrast,
+    talkEn: "You reached the top! " + peak + " m at the highest point." + fujiEn + trailEn + contrastEn,
+    smallZh: name + "，最高 " + peak + " 米",
+    smallEn: nameEn + ", " + peak + " m at the top",
+  };
+}
+
+export function hikeQuizBeats({ hike, level, askedKinds, taskId, celebrated, peakT, askedSession }) {
+  const beats = [];
+  const asked = askedKinds instanceof Set ? askedKinds : new Set(askedKinds || []);
+  const hasAsked = (key) => (askedSession && askedSession.has && askedSession.has(key)) || false;
+  const slopeAlready = asked.has("slope") || hasAsked("hike:slope");
+  const steep = true; // the beat exists if the slope question will be asked; hikeShouldAskSlope decides at fire time
+  if (hikeShouldAskSlope({ taskId, level, steep, already: slopeAlready })) {
+    beats.push({ id: "slope", at: 0.12, done: asked.has("slope") });
+  }
+  if (level === 2) beats.push({ id: "mid", at: 0.45, done: asked.has("mid") || hasAsked("hike:mid") });
+  if (level >= 3) beats.push({ id: "temp", at: 0.3, done: asked.has("temp") || hasAsked("hike:temp") });
+  if (!celebrated && Number.isFinite(Number(peakT))) beats.push({ id: "summit", at: Number(peakT), done: false });
+  return beats;
+}
+
 
 /** World card for the mountain under the child's feet — never a different sample peak. */
 export function hikeCardIdFor(hike) {
@@ -212,17 +285,18 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
 
   const canvas = el("canvas", { class: "fill", "aria-label": "爬山剖面" });
   s.append(canvas);
+  const trailNote = hikeTrailNote(hike);
   s.append(topbar({
-    title: hike.name,
-    sub: hike.sample ? "示例山路，还不是你自己走的足迹" : "你的轨迹",
+    title: { zh: hike.name, en: hike.nameEn || hike.name },
+    sub: trailNote,
     onBack: goHome,
     extra: switchRouteButton("换一座山", () => renderHike(app, { goHome, onDone, goZoom })),
   }));
   const board = hud([
-    { label: "走了多远", value: "0 公里", tone: "cyan" },
-    { label: "有多高", value: Math.round(pts[0].elevM) + " 米", tone: "" },
-    { label: "坡度", value: "平", tone: "mint" },
-    { label: "外面气温", value: formatTemp(hikeTempC(pts[0].elevM)), tone: "coral" },
+    { label: "走了多远", labelEn: "How far", value: "0 公里", tone: "cyan" },
+    { label: "有多高", labelEn: "How high", value: Math.round(pts[0].elevM) + " 米", tone: "" },
+    { label: "坡度", labelEn: "Slope", value: "平", tone: "mint" },
+    { label: "外面气温", labelEn: "Outside temp", value: formatTemp(hikeTempC(pts[0].elevM)), tone: "coral" },
   ]);
   s.append(board);
 
@@ -245,7 +319,7 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
   }
 
   let running = true, raf = 0, lastTs = 0;
-  const hint = playHint("小人会自己往前走。你也可以用手拉他。");
+  const hint = playHint({ zh: "小人会自己往前走。你也可以用手拉他。", en: "The little walker will move on his own. You can also drag him." });
   s.append(hint);
   const draw = (now) => {
     if (!running) return;
@@ -337,7 +411,11 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     const L = layout(w, h);
     const span = L.R - L.L;
     if (span <= 0) return;
-    t = clamp((pt.x - L.L) / span, 0, 1);
+    const desired = clamp((pt.x - L.L) / span, 0, 1);
+    const peakT = totalKm ? (peak.distKm / totalKm) : 1;
+    const beats = hikeQuizBeats({ hike, level, askedKinds, taskId, celebrated, peakT, askedSession: { has: (k) => store.hasAsked(k) } });
+    const held = clampSeekToBeats(desired, beats);
+    t = held.pos;
   }
 
   function maybeAsk() {
@@ -377,24 +455,26 @@ export function renderHike(app, { goHome, onDone, goZoom, hikeId, firstPlay = fa
     const peakT = totalKm ? (peak.distKm / totalKm) : t;
     t = peakT;
     s.querySelectorAll(".prompt").forEach((n) => n.remove());
+    const copy0 = hikeCelebrateCopy(hike, officialPeak);
     const banner = el("div", { class: "summit-banner" },
-      "到山顶了！",
-      el("small", {}, hike.name.replace("（示例）", "") + "，最高 " + Math.round(officialPeak) + " 米"),
+      bi(copy0.bannerZh, copy0.bannerEn),
+      el("small", {}, bi(copy0.smallZh, copy0.smallEn)),
     );
     s.append(banner);
     setTimeout(() => banner.remove(), 4000);
-    store.recordAnswer("hike", true);
-    const line = "到山顶了！最高 " + Math.round(officialPeak) + " 米。这是示例山路，还不是你自己走的足迹。";
-    talk(line);
+    store.recordJourneyComplete("hike");
+    const copy = hikeCelebrateCopy(hike, officialPeak);
+    const line = copy.talkZh;
+    talk(copy.talkZh, copy.talkEn);
     const cont = () => offerContinue(s, {
-      title: "到山顶了",
-      body: hike.name.replace("（示例）", "") + "最高 " + Math.round(officialPeak) + " 米。还可以再爬一座，或去尺度之旅。",
+      title: copy.title,
+      body: copy.body,
       tone: "ok",
       goHome,
       actions: [
-        { label: "再爬一座", kind: "ok", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
-        { label: "再走一次", onClick: () => renderHike(app, { goHome, onDone, goZoom, hikeId: hike.id }) },
-        { label: "去尺度之旅", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
+        { label: "再爬一座", labelEn: "Climb another", kind: "ok", onClick: () => renderHike(app, { goHome, onDone, goZoom, taskId }) },
+        { label: "再走一次", labelEn: "Walk it again", onClick: () => renderHike(app, { goHome, onDone, goZoom, hikeId: hike.id }) },
+        { label: "去尺度之旅", labelEn: "Go to the scale journey", onClick: () => goToScaleJourney({ goZoom, onDone, goHome }) },
       ],
     });
     afterReveal("hike", cont, hikeRevealOpts(hike, { force: true }));

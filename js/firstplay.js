@@ -6,7 +6,8 @@ import { renderRace } from "./modes/race.js";
 import { renderHike } from "./modes/hike.js";
 import { renderZoom } from "./modes/zoom.js";
 import { airportByCode, routeDistanceKm } from "./data.js";
-import { thumbViewForRoute } from "./pickers.js";
+import { thumbViewForRoute, FIRST_PLAY_HIKE_ID } from "./pickers.js";
+import { bi, UI } from "./i18n.js";
 import { greatCirclePoints, lonLatToXY } from "./geo.js";
 import { fillSky, drawWater, drawLand, drawRoute, drawCityGlow, drawPlane, drawSoftClouds, paintRouteThumb, drawMountainPair } from "./art.js";
 
@@ -15,19 +16,19 @@ export function renderWelcome(app, go) {
   const canvas = el("canvas", { class: "fill welcome-map", "aria-hidden": "true" });
   const ui = el("div", { class: "welcome" },
     el("div", { class: "welcome-copy" },
-      el("div", { class: "welcome-title" }, "Chance，还记得我们飞去东京吗？"),
-      el("div", { class: "welcome-sub" }, "上海浦东 → 东京羽田  ·  约 1,740 公里"),
+      el("div", { class: "welcome-title" }, bi("Chance，还记得我们飞去东京吗？", "Chance, remember our flight to Tokyo?")),
+      el("div", { class: "welcome-sub" }, bi("上海浦东 → 东京羽田  ·  约 1,740 公里", "Shanghai Pudong → Tokyo Haneda  ·  about 1,740 km")),
     ),
     el("button", {
       class: "plane-start",
-      "aria-label": "开始",
+      "aria-label": "开始 / Start",
       onClick: () => {
         unlockAudio();
         sfx.whoosh();
         go("firstplay");
       },
     }, "✈️"),
-    el("div", { class: "hint" }, "点飞机，开始"),
+    el("div", { class: "hint" }, bi(UI.tapPlane)),
   );
   s.append(canvas, ui);
   let running = true, raf = 0, t0 = performance.now();
@@ -75,19 +76,19 @@ function chooseNext(app, go) {
   const s = screen();
   s.classList.add("welcome");
   const canvas = el("canvas", { class: "fill", "aria-hidden": "true" });
-  const parisBtn = choiceTile("去巴黎", "ok", (ctx, w, h) => {
+  const parisBtn = choiceTile({ zh: "去巴黎", en: "Go to Paris" }, "ok", (ctx, w, h) => {
     paintRouteThumb(ctx, w, h, "PVG", "CDG", thumbViewForRoute(airportByCode("PVG"), airportByCode("CDG")));
   }, () => { unlockAudio(); goFlightParis(app, go); });
-  const hikeBtn = choiceTile("爬山", "", (ctx, w, h) => {
+  const hikeBtn = choiceTile({ zh: "爬山", en: "Hike" }, "", (ctx, w, h) => {
     fillSky(ctx, w, h, { top: "#7eb6e0", mid: "#b8d4c8", bot: "#163328" });
     drawMountainPair(ctx, w * 0.5, h * 0.85, h * 0.7, { snow: true, color: "#2a6a55" });
   }, () => {
     unlockAudio();
     // First-play: go straight into a default sample hike, like 去巴黎 / 速度大比拼.
     // Later/home entry still opens the mountain picker.
-    renderHike(app, { goHome: () => go("home"), onDone: () => wrap(app, go), hikeId: "sheshan", firstPlay: true });
+    renderHike(app, { goHome: () => go("home"), onDone: () => wrap(app, go), hikeId: FIRST_PLAY_HIKE_ID, firstPlay: true });
   });
-  const raceBtn = choiceTile("速度大比拼", "", (ctx, w, h) => {
+  const raceBtn = choiceTile({ zh: "速度大比拼", en: "Speed race" }, "", (ctx, w, h) => {
     fillSky(ctx, w, h, { top: "#143a5c", mid: "#0b1a28", bot: "#071018" });
     ctx.strokeStyle = "rgba(92,225,230,0.35)";
     ctx.lineWidth = 8;
@@ -100,7 +101,7 @@ function chooseNext(app, go) {
     ctx.fillText("🚗", w * 0.62, h * 0.68);
   }, () => { unlockAudio(); renderRace(app, { goHome: () => go("home"), onDone: () => wrap(app, go), trackId: "tokyo" }); });
 
-  const journeyBtn = choiceTile("尺度之旅", "ok", (ctx, w, h) => {
+  const journeyBtn = choiceTile({ zh: "尺度之旅", en: "Scale journey" }, "ok", (ctx, w, h) => {
     fillSky(ctx, w, h, { top: "#071018", mid: "#143a5c", bot: "#0b1520" });
     ctx.fillStyle = "#f5c84c";
     ctx.beginPath(); ctx.arc(w * 0.5, h * 0.52, Math.min(w, h) * 0.22, 0, Math.PI * 2); ctx.fill();
@@ -112,7 +113,7 @@ function chooseNext(app, go) {
   }, () => { unlockAudio(); renderZoom(app, { goHome: () => go("home"), onDone: () => wrap(app, go) }); });
 
   const ui = el("div", { class: "welcome choose-next-ui" },
-    el("h2", { class: "welcome-title" }, "下一站，你来选"),
+    el("h2", { class: "welcome-title" }, bi(UI.pickNext)),
     el("div", { class: "choices choose-next-row" }, parisBtn, hikeBtn, raceBtn, journeyBtn),
   );
   s.append(canvas, ui);
@@ -138,7 +139,7 @@ function chooseNext(app, go) {
   raf = requestAnimationFrame(tick);
   s._cleanup = () => { running = false; cancelAnimationFrame(raf); };
   app.replaceChildren(s);
-  talk("下一站你来选。去巴黎的航线，爬过的山，还是速度大比拼？");
+  talk("下一站你来选。去巴黎的航线，你来过的富士山，还是速度大比拼？", "You pick the next stop. The flight to Paris, Fuji where you have been, or the speed race?");
 }
 
 function choiceTile(label, kind, paint, onClick) {
@@ -170,17 +171,18 @@ function wrap(app, go) {
   store.patch({ firstPlayDone: true, tomorrowQuestionId: "q1", lastTomorrowAt: store.todayKey(), endedToday: false });
   const s = screen();
   const q = "还可以继续。去走一趟从很小到宇宙的尺度之旅？也可以先想：骑自行车去东京要几天？";
+  const qEn = "You can keep going. Walk the scale journey from the very small all the way to the universe? Or first wonder: how many days to bike to Tokyo?";
   s.append(el("div", { class: "end-card" },
-    el("h2", { text: "还可以继续" }),
-    el("p", { text: "尺度之旅可以从很小一直走到宇宙，路上会经过你的飞机和山。" }),
-    el("p", { style: { color: "var(--muted)", fontSize: "18px" }, text: "想一想也可以：骑自行车去东京要几天？" }),
+    el("h2", {}, { zh: "还可以继续", en: "You can keep going" }),
+    el("p", {}, { zh: "尺度之旅可以从很小一直走到宇宙，路上会经过你的飞机和富士山。", en: "The scale journey can walk from the very small all the way to the universe, past your flights and Fuji." }),
+    el("p", { style: { color: "var(--muted)", fontSize: "18px" } }, { zh: "想一想也可以：骑自行车去东京要几天？", en: "Or think about this: how many days to bike to Tokyo?" }),
     el("button", { class: "choice ok", style: { marginTop: "18px" }, onClick: () => {
       unlockAudio();
       renderZoom(app, { goHome: () => go("home") });
-    } }, "去尺度之旅"),
-    el("button", { class: "choice", style: { marginTop: "8px" }, onClick: () => go("home") }, "回主页"),
+    } }, UI.goScale),
+    el("button", { class: "choice", style: { marginTop: "8px" }, onClick: () => go("home") }, UI.goHome),
   ));
   app.replaceChildren(s);
-  talk(q);
+  talk(q, qEn);
   return true; // truthy sentinel so onDone?.() || goHome?.() does not wipe this screen
 }

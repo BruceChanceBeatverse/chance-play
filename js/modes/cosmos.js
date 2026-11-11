@@ -1,4 +1,5 @@
 import { store } from "../store.js";
+import { bi, UI } from "../i18n.js";
 import { talk, sfx } from "../audio.js";
 import { el, screen, topbar, hud, fitCanvas, bindDrag, afterReveal, promptBox, toast, questionHudLayout, HUD_LAYOUT } from "../ui.js";
 import {
@@ -9,9 +10,9 @@ import { drawGlobe, drawMoon, drawSun } from "../art.js";
 
 export function cosmosLightDestinations() {
   return [
-    { id: "moon", name: "月亮", seconds: LIGHT_MOON_S, note: "月亮离我们大约 38.4 万公里。光走完这段路，只要 1.28 秒。" },
-    { id: "sun", name: "太阳", seconds: LIGHT_SUN_S, note: "太阳远多了。光要走 8 分 19 秒才到地球。" },
-    { id: "proxima", name: "最近的恒星", seconds: PROXIMA_LY * 365.25 * 24 * 3600, note: "最近的恒星叫比邻星，光要走大约 4.25 年。光一年跑的路，就叫 1 光年。" },
+    { id: "moon", name: "月亮", nameEn: "the Moon", seconds: LIGHT_MOON_S, note: "月亮离我们大约 38.4 万公里。光走完这段路，只要 1.28 秒。", noteEn: "The Moon is about 384,000 km away. Light covers that in only 1.28 seconds." },
+    { id: "sun", name: "太阳", nameEn: "the Sun", seconds: LIGHT_SUN_S, note: "太阳远多了。光要走 8 分 19 秒才到地球。", noteEn: "The Sun is much farther. Light takes 8 minutes 19 seconds to reach Earth." },
+    { id: "proxima", name: "最近的恒星", nameEn: "the nearest star", seconds: PROXIMA_LY * 365.25 * 24 * 3600, note: "最近的恒星叫比邻星，光要走大约 4.25 年。光一年跑的路，就叫 1 光年。", noteEn: "The nearest star is Proxima Centauri. Light takes about 4.25 years. A light-year is how far light travels in one year." },
   ];
 }
 
@@ -20,10 +21,16 @@ export function cosmosArrivalTitle(dest) {
   return "光到了" + name;
 }
 
+export function cosmosArrivalTitleEn(dest) {
+  const nameEn = (dest && dest.nameEn) || "the destination";
+  return "Light reached " + nameEn;
+}
+
 export function cosmosArrivalTalk(dest) {
   const name = (dest && dest.name) || "目的地";
+  const nameEn = (dest && dest.nameEn) || "the destination";
   const time = dest ? prettyTime(dest.seconds) : "";
-  return "光到了" + name + "。这一段光要走 " + time + "。";
+  return { zh: "光到了" + name + "。这一段光要走 " + time + "。", en: "Light reached " + nameEn + ". This stretch takes " + time + "." };
 }
 
 export function cosmosCardForBeat(beat) {
@@ -37,11 +44,13 @@ export function cosmosCardForBeat(beat) {
 export function cosmosHolePrompt() {
   return {
     title: "如果黑洞变重 10 倍，它会变得多宽？",
+    titleEn: "If a black hole becomes 10 times heavier, how much wider does it get?",
     body: "先想一想。先不要看上面的数字。",
+    bodyEn: "Think first. Don't look at the number above yet.",
     choices: [
-      { label: "也变成 10 倍那么宽", ok: true },
-      { label: "变成 100 倍那么宽" },
-      { label: "还是一样宽" },
+      { label: "也变成 10 倍那么宽", labelEn: "It also becomes 10 times as wide", ok: true },
+      { label: "变成 100 倍那么宽", labelEn: "It becomes 100 times as wide" },
+      { label: "还是一样宽", labelEn: "It stays the same width" },
     ],
     okLine: "对。变重几倍，就变得几倍宽。",
     noLine: "变重几倍，黑洞就变得几倍宽。",
@@ -93,26 +102,28 @@ export function cosmosArrivalLayout(w, h) {
   };
 }
 
-export function renderCosmos(app, { goHome, onDone } = {}) {
-  if (!store.cosmosUnlocked()) {
+export function renderCosmos(app, { goHome, onDone, destId, tab, forceOpen } = {}) {
+  const back = typeof onDone === "function" ? onDone : goHome;
+  const open = forceOpen || store.cosmosUnlocked();
+  if (!open) {
     const s = screen();
-    s.append(topbar({ title: "宇宙延伸", onBack: goHome }));
+    s.append(topbar({ title: { zh: "宇宙延伸", en: "Cosmos" }, onBack: back }));
     s.append(el("div", { class: "end-card" },
-      el("h2", { text: "这张地图还没打开" }),
-      el("p", { text: "先在「我的飞行地图」和「速度大比拼」里玩到第 3 级，它就会作为新地图出现。" }),
-      el("button", { class: "btn", onClick: goHome }, "回去玩"),
+      el("h2", {}, UI.lockedMap),
+      el("p", {}, { zh: "先走到月亮或太阳，或走完整条尺度之旅，就可以看光要走多久，也可以看黑洞。", en: "Walk to the Moon or the Sun, or finish the scale journey, and you can see how long light takes, and look at black holes." }),
+      el("button", { class: "btn", onClick: back }, UI.goBackPlay),
     ));
     app.replaceChildren(s);
-    talk("这张地图还没打开。先在飞行地图和速度大比拼里玩到第三级。");
+    talk("这张地图还没打开。先走到月亮或太阳，或走完整条尺度之旅。", "This map is not open yet. First walk to the Moon or the Sun, or finish the scale journey.");
     return;
   }
 
   const s = screen();
   s.classList.add("mode-cosmos");
-  s.append(topbar({ title: "宇宙延伸", sub: "光速快递 · 黑洞调节器", onBack: goHome }));
+  s.append(topbar({ title: { zh: "宇宙延伸", en: "Cosmos" }, sub: { zh: "光速快递 · 黑洞调节器", en: "Light post · Black-hole dial" }, onBack: back }));
   const tabs = el("div", { class: "bottom-bar", style: { justifyContent: "center" } },
-    el("button", { class: "btn", id: "tab-light" }, "光速快递"),
-    el("button", { class: "btn ghost", id: "tab-hole" }, "黑洞调节器"),
+    el("button", { class: "btn", id: "tab-light" }, UI.lightPost),
+    el("button", { class: "btn ghost", id: "tab-hole" }, UI.blackHole),
   );
   const stage = el("div", { class: "stage" });
   s.append(stage, tabs);
@@ -128,7 +139,7 @@ export function renderCosmos(app, { goHome, onDone } = {}) {
     if (which === "light") {
       tabs.querySelector("#tab-light").className = "btn";
       tabs.querySelector("#tab-hole").className = "btn ghost";
-      renderLight(stage, onDone, goHome);
+      renderLight(stage, onDone, goHome, destId);
     } else {
       tabs.querySelector("#tab-hole").className = "btn";
       tabs.querySelector("#tab-light").className = "btn ghost";
@@ -137,10 +148,10 @@ export function renderCosmos(app, { goHome, onDone } = {}) {
   }
   tabs.querySelector("#tab-light").addEventListener("click", () => switchTab("light"));
   tabs.querySelector("#tab-hole").addEventListener("click", () => switchTab("hole"));
-  renderLight(stage, onDone, goHome);
+  renderLight(stage, onDone, goHome, destId);
 }
 
-function renderLight(stage, onDone, goHome) {
+function renderLight(stage, onDone, goHome, destId) {
   stage.replaceChildren();
   const canvas = el("canvas", { class: "fill", "aria-label": "光速快递" });
   stage.append(canvas);
@@ -151,7 +162,7 @@ function renderLight(stage, onDone, goHome) {
   ]);
   stage.append(board);
   const dests = cosmosLightDestinations();
-  let dest = dests[0];
+  let dest = dests.find((d) => d.id === destId) || dests[0];
   let t = 0, playing = false, done = false;
   const chips = el("div", { class: "bottom-bar", style: { justifyContent: "center" } });
   const startBtn = el("button", { id: "light-start", class: "choice ok", "aria-label": "开始" }, "开始");
@@ -177,7 +188,7 @@ function renderLight(stage, onDone, goHome) {
       clearArrivalUi();
       startLight(true);
       talk("光从" + d.name + "到地球，要 " + prettyTime(d.seconds) + "。");
-    } }, d.name));
+    } }, d.nameEn ? { zh: d.name, en: d.nameEn } : d.name));
   }
   const onStartBtn = () => {
     if (playing) {
@@ -259,7 +270,7 @@ function renderLight(stage, onDone, goHome) {
     // including after switching away from the moon or pressing 再看一次.
     clearArrivalUi();
     talk(cosmosArrivalTalk(dest));
-    const box = promptBox(cosmosArrivalTitle(dest), dest.note, [{ label: "下一步", kind: "ok" }], () => {
+    const box = promptBox({ zh: cosmosArrivalTitle(dest), en: cosmosArrivalTitleEn(dest) }, { zh: dest.note, en: dest.noteEn }, [{ label: "下一步", labelEn: "Next", kind: "ok" }], () => {
       box.remove();
       afterReveal("cosmos", () => {
         talk(cosmosStayTalk());

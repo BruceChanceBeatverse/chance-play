@@ -9,7 +9,12 @@ import {
   LIGHT_YEAR_KM, EARTH_MEAN_DIAMETER_KM, C_KM_S, SGR_A_SCHWARZSCHILD_KM,
   SUN_SCHWARZSCHILD_KM,
 } from "./geo.js";
-import { DEFAULT_PROFILE } from "./data.js";
+import {
+  DEFAULT_PROFILE,
+  EIFFEL_HEIGHT_M, DUOMO_MADONNINA_M, ORIENTAL_PEARL_M, JIN_MAO_M,
+  SWFC_HEIGHT_M, SHANGHAI_TOWER_M, SCHLERN_PEZ_M, FUJI_HEIGHT_M,
+  EVEREST_HEIGHT_M, CHANCE_HIKE_KM, CHANCE_HIKE_GAIN_M, SHESHAN_HEIGHT_M,
+} from "./data.js";
 
 /** CODATA / SI: Planck length ℓP = √(ħG/c³) ≈ 1.616×10⁻³⁵ m. */
 export const PLANCK_LENGTH_M = 1.616e-35;
@@ -189,42 +194,142 @@ export const NAMED_SCALE_STOPS = [
     waystation: true, familiar: true, emoji: "👣",
   },
   {
-    id: "sheshan", name: "佘山", metres: 99, kind: "mountain",
-    shown: "大约 99 米",
-    blurb: "上海佘山西峰大约 99 米。示例剖面，不是你自己走的足迹。",
-    correlate: "这是你爬过的小山。黄山大约是它的 19 倍高，富士山大约是 38 倍。",
-    lingerMode: "hike", hikeId: "sheshan",
-    waystation: true, familiar: true, emoji: "⛰️",
+    id: "sheshan", name: "佘山", nameEn: "Sheshan", metres: SHESHAN_HEIGHT_M, kind: "mountain",
+    shown: "大约 99 米", shownEn: "About 99 m",
+    blurb: "上海附近一座小山，官方大约 99 米。只用来比一比，不是你爬过的山。",
+    blurbEn: "A small hill near Shanghai, officially about 99 m. Only for contrast, not a mountain you have climbed.",
+    correlate: "米兰大教堂已经比它高一点。外滩的楼、埃菲尔铁塔、富士山都比它高很多。",
+    correlateEn: "The Milan Duomo is already a little taller. The Bund towers, the Eiffel Tower, and Fuji are all much taller.",
+    contrastOnly: true, emoji: "⛰️",
     source: "Sheshan West Peak commonly ~98.8–99 m",
   },
+  {
+    id: "duomo", name: "米兰大教堂", nameEn: "Milan Cathedral", metres: DUOMO_MADONNINA_M, kind: "city",
+    shown: "108.5 米", shownEn: "108.5 m",
+    blurb: "到金色圣母像（Madonnina）的官方高度是 108.5 米。今年你在米兰认识了它。",
+    blurbEn: "The official height to the golden Madonnina is 108.5 m. You got to know it in Milan this year.",
+    correlate: "比佘山高一点点。你看见过的埃菲尔铁塔，大约是它的 3 倍高。",
+    correlateEn: "A little taller than Sheshan. The Eiffel Tower you have seen is about 3 times as high.",
+    familiar: true, emoji: "⛪",
+    source: "Veneranda Fabbrica / duomomilano.it: 108.5 m to the Madonnina",
+  },
+
   {
     id: "plane-second", name: "飞机 1 秒（假设）", metres: 850 / 3.6, kind: "speed",
     shown: "大约 236 米",
     blurb: "飞机按假设的 850 公里/小时，1 秒大约飞 236 米。",
-    correlate: "比佘山还高。去东京的飞机，一眨眼就飞过一座小山那么远。",
+    correlate: "比佘山、比埃菲尔铁塔都要一下子更远。去东京的飞机，一眨眼就飞过一座小山那么远。",
+    correlateEn: "Farther in one second than Sheshan or the Eiffel Tower is tall. The plane to Tokyo covers a small-hill height in a blink.",
     assumption: true, lingerMode: "race", emoji: "✈️",
   },
   {
     id: "kilometre", name: "1 公里", metres: 1000, kind: "everyday",
     shown: "1 公里",
     blurb: "1000 米就是 1 公里。走大概十几分钟（按走路来想）。",
-    correlate: "佘山大约 99 米，还不到 1 公里的十分之一高。",
+    correlate: "你一次能爬大约 900 米，已经接近 1 公里。佘山只有大约 99 米，只是一座用来比的小山。",
+    correlateEn: "The 900 m you can climb in one go is already close to 1 km. Sheshan is only about 99 m, a small hill for contrast.",
     emoji: "📏",
   },
+
   {
-    id: "huangshan", name: "黄山莲花峰", metres: 1864, kind: "mountain",
-    shown: "1,864 米",
-    blurb: "黄山最高峰莲花峰，官方大约 1,864 米。示例剖面，不是你的足迹。",
-    correlate: "大约是佘山的 19 倍高。比去东京的飞机巡航还低很多。",
-    lingerMode: "hike", hikeId: "huangshan",
-    waystation: true, familiar: true, emoji: "⛰️",
+    id: "eiffel", name: "埃菲尔铁塔", nameEn: "The Eiffel Tower", metres: EIFFEL_HEIGHT_M, kind: "city",
+    shown: "330 米", shownEn: "330 m",
+    blurb: "你去过巴黎，也看见过这座塔。带天线的官方高度是 330 米。",
+    blurbEn: "You have been to Paris and seen this tower. The official height with its antenna is 330 m.",
+    correlate: "比米兰大教堂高大约 3 倍，比东方明珠矮一点。",
+    correlateEn: "About 3 times as high as the Milan Duomo, and a little shorter than the Oriental Pearl.",
+    familiar: true, emoji: "🗼",
+    source: "toureiffel.paris official height with antennas: 330 m (2022)",
+  },
+  {
+    id: "jinmao", name: "金茂大厦", nameEn: "Jin Mao Tower", metres: JIN_MAO_M, kind: "city",
+    shown: "420.5 米", shownEn: "420.5 m",
+    blurb: "从外滩看过去的一座楼，大约 420.5 米。你每天都能看见。",
+    blurbEn: "One of the towers you see from the Bund, about 420.5 m. You see it every day.",
+    correlate: "比埃菲尔铁塔高一点，比东方明珠矮一点。",
+    correlateEn: "A little taller than the Eiffel Tower, a little shorter than the Oriental Pearl.",
+    familiar: true, emoji: "🏙️",
+    source: "Jin Mao Tower 420.5 m",
+  },
+  {
+    id: "oriental-pearl", name: "东方明珠", nameEn: "Oriental Pearl Tower", metres: ORIENTAL_PEARL_M, kind: "city",
+    shown: "468 米", shownEn: "468 m",
+    blurb: "外滩望过去最熟的那座。官方高度 468 米。你每天都能看见。",
+    blurbEn: "The familiar tower across the Bund. Official height 468 m. You see it every day.",
+    correlate: "比埃菲尔铁塔高，比环球金融中心矮一点。",
+    correlateEn: "Taller than the Eiffel Tower, a little shorter than the World Financial Center.",
+    familiar: true, waystation: true, emoji: "🔮",
+    source: "shanghai.gov.cn: Oriental Pearl Tower 468 m",
+  },
+  {
+    id: "swfc", name: "环球金融中心", nameEn: "Shanghai World Financial Center", metres: SWFC_HEIGHT_M, kind: "city",
+    shown: "492 米", shownEn: "492 m",
+    blurb: "外滩三件套里的一座，官方高度 492 米。你每天都能看见。",
+    blurbEn: "One of the Bund skyline towers, officially 492 m. You see it every day.",
+    correlate: "比东方明珠再高一点，比上海中心矮一截。",
+    correlateEn: "A little taller than the Oriental Pearl, and shorter than Shanghai Tower.",
+    familiar: true, emoji: "🏙️",
+    source: "SWFC official: 492 m",
+  },
+  {
+    id: "shanghai-tower", name: "上海中心", nameEn: "Shanghai Tower", metres: SHANGHAI_TOWER_M, kind: "city",
+    shown: "632 米", shownEn: "632 m",
+    blurb: "外滩望过去最高的那座，官方高度 632 米。你每天都能看见。",
+    blurbEn: "The tallest of the towers you see from the Bund, officially 632 m. You see it every day.",
+    correlate: "比东方明珠高，比你一次能爬的 900 米还矮一点。",
+    correlateEn: "Taller than the Oriental Pearl, and still a little shorter than the 900 m you can climb in one go.",
+    familiar: true, emoji: "🏙️",
+    source: "Shanghai Tower 632 m",
+  },
+  {
+    id: "chance-climb", name: "你一次能爬的高度", nameEn: "The height you can climb in one go", metres: CHANCE_HIKE_GAIN_M, kind: "me",
+    shown: "大约 900 米", shownEn: "About 900 m",
+    blurb: "你一次能走大约 12 公里，还能爬升 800 到 1,000 米。这是你自己的本事，不是假设。",
+    blurbEn: "You can hike about 12 km in one go, with 800 to 1,000 m of climbing. That is your own ability, not a guess.",
+    correlate: "比上海中心还高一截，比斯西利亚尔的官方顶要矮。你在多洛米蒂爬过接近 1,000 米的山。",
+    correlateEn: "A little taller than Shanghai Tower, and lower than Schlern's official top. You have climbed nearly 1,000 m in the Dolomites.",
+    lingerMode: "hike", hikeId: "dolomites",
+    familiar: true, emoji: "🥾",
+    source: "Chance's lived hiking ability, mid of 800–1000 m",
+  },
+  {
+    id: "chance-hike", name: "你一次能走的 12 公里", nameEn: "The 12 km you can hike in one go", metres: CHANCE_HIKE_KM * 1000, kind: "me",
+    shown: "12 公里", shownEn: "12 km",
+    blurb: "你一次能走大约 12 公里。这是你自己的本事，不是假设。",
+    blurbEn: "You can hike about 12 km in one go. That is your own ability, not a guess.",
+    correlate: "比开车去机场短，但已经是很长的一天。还可以爬升 800 到 1,000 米。",
+    correlateEn: "Shorter than the drive to the airport, but already a long day. You can also climb 800 to 1,000 m.",
+    lingerMode: "hike", hikeId: "dolomites",
+    familiar: true, emoji: "🥾",
+    source: "Chance's lived hiking ability: 12 km in one go",
+  },
+  {
+    id: "schlern", name: "斯西利亚尔", nameEn: "Schlern / Sciliar", metres: SCHLERN_PEZ_M, kind: "mountain",
+    shown: "2,563 米", shownEn: "2,563 m",
+    blurb: "这座平顶山在意大利南蒂罗尔的多洛米蒂，不在瑞士。官方最高点蒙特佩茨大约 2,563 米。你认识它。",
+    blurbEn: "This table-top mountain is in the Dolomites of South Tyrol, Italy, not on the Swiss plateau. The official high point, Monte Pez, is about 2,563 m. You know it.",
+    correlate: "比你一次能爬的高度高，比富士山矮。你在多洛米蒂爬过接近 1,000 米的山，我们没有说你走到了 2,563 米的顶。",
+    correlateEn: "Higher than the 900 m you can climb in one go, and lower than Fuji. You have climbed nearly 1,000 m in the Dolomites; we are not saying you reached the 2,563 m summit.",
+    familiar: true, emoji: "🏞️",
+    source: "Schlern / Sciliar, Monte Pez 2,563 m, Seiser Alm / South Tyrol",
+  },
+  {
+    id: "huangshan", name: "黄山莲花峰", nameEn: "Huangshan Lotus Peak", metres: 1864, kind: "mountain",
+    shown: "1,864 米", shownEn: "1,864 m",
+    blurb: "黄山最高峰莲花峰，官方大约 1,864 米。一座可以比一比的名山，不是你说过爬过的山。",
+    blurbEn: "Lotus Peak, the high point of Huangshan, is officially about 1,864 m. A famous peak to compare, not one you have said you climbed.",
+    correlate: "比斯西利亚尔矮一些，大约是富士山的一半。",
+    correlateEn: "A little lower than Schlern, and about half as high as Fuji.",
+    emoji: "⛰️",
     source: "Lotus Peak 1,864 m (commonly 1864 or 1864.8 m)",
   },
   {
-    id: "fuji", name: "富士山", metres: 3776, kind: "mountain",
-    shown: "3,776 米",
-    blurb: "日本最高峰，官方 3,776 米。示例剖面，不是你的足迹。",
-    correlate: "大约是佘山的 38 倍高，大约是黄山的 2 倍高。",
+    id: "fuji", name: "富士山", nameEn: "Mount Fuji", metres: FUJI_HEIGHT_M, kind: "mountain",
+    shown: "3,776 米", shownEn: "3,776 m",
+    blurb: "官方高度 3,776 米。你来过这座山。你记得它有三千八百多米，差不多就是这个数。示例山路，还不是你自己走的足迹。",
+    blurbEn: "The official height is 3,776 m. You've been here. You remember it as more than 3,800 m, which is about the same number. This path is a sample trail, not your own GPS track.",
+    correlate: "比斯西利亚尔高，大约是珠穆朗玛峰的一半不到。珠峰你认识，但没有爬过。",
+    correlateEn: "Taller than Schlern, and a little less than half as high as Everest. You know Everest, but you have not climbed it.",
     lingerMode: "hike", hikeId: "fuji",
     waystation: true, familiar: true, emoji: "🗻",
     source: "GSI 3776.12 m, usually written 3776 m",
@@ -474,14 +579,17 @@ export const NAMED_SCALE_STOPS = [
     id: "tree", name: "一棵树（示例）", metres: 20, kind: "everyday",
     shown: "大约 20 米",
     blurb: "一棵比较高的树大约 20 米。这是示例。",
-    correlate: "大约是你身高的十几倍（按假设身高）。还比佘山矮很多。",
+    correlate: "大约是你身高的十几倍（按假设身高）。比米兰大教堂、比外滩的楼都矮很多。",
+    correlateEn: "About ten-something times your height (using the assumed height). Much shorter than the Duomo or the Bund towers.",
     assumption: true, emoji: "🌳",
   },
   {
-    id: "everest", name: "珠穆朗玛峰", metres: 8849, kind: "mountain",
-    shown: "8,849 米",
-    blurb: "地球上最高的山，大约 8,849 米。",
+    id: "everest", name: "珠穆朗玛峰", nameEn: "Mount Everest", metres: EVEREST_HEIGHT_M, kind: "mountain",
+    shown: "8,849 米", shownEn: "8,849 m",
+    blurb: "地球上最高的山。官方高度 8,848.86 米，常说 8,849 米。你认识它，但没有爬过。",
+    blurbEn: "The highest mountain on Earth. Officially 8,848.86 m, commonly 8,849 m. You know it, but you have not climbed it.",
     correlate: "大约是富士山的 2 倍多高，还是比飞机巡航矮一点。",
+    correlateEn: "A little more than twice as high as Fuji, and still a bit lower than a cruising plane.",
     source: "Everest 8848.86 m, commonly 8,849 m",
     emoji: "🏔️",
   },
@@ -562,12 +670,13 @@ export const NAMED_SCALE_STOPS = [
 
 /** Waystations the child can skip to. */
 export const SCALE_WAYSTATIONS = [
-  { id: "planck", label: "普朗克" },
-  { id: "ant", label: "蚂蚁" },
-  { id: "me", label: "我" },
-  { id: "sheshan", label: "佘山" },
-  { id: "tokyo", label: "我的飞机" },
-  { id: "universe", label: "宇宙" },
+  { id: "planck", label: "普朗克", labelEn: "Planck" },
+  { id: "ant", label: "蚂蚁", labelEn: "Ant" },
+  { id: "me", label: "我", labelEn: "Me" },
+  { id: "oriental-pearl", label: "外滩", labelEn: "Bund" },
+  { id: "fuji", label: "富士山", labelEn: "Fuji" },
+  { id: "tokyo", label: "我的飞机", labelEn: "My plane" },
+  { id: "universe", label: "宇宙", labelEn: "Universe" },
 ];
 
 const LAST_FELT_SMALL = "蚂蚁";
@@ -581,10 +690,10 @@ function bridgeForDecade(exp) {
     return "已经接近你能看见的东西了。再往上一点点，就是蚂蚁和你的手指。";
   }
   if (exp <= 2) {
-    return "用你的身高、你走的路、你爬过的佘山来比。";
+    return "用你的身高、你走的路、米兰大教堂和埃菲尔铁塔来比。";
   }
   if (exp <= 4) {
-    return "用佘山、黄山、富士山，还有飞机飞多高来比。";
+    return "用外滩的楼、你一次能爬的高度、斯西利亚尔和富士山来比。";
   }
   if (exp <= 7) {
     return "用你坐过的上海到东京、上海到巴黎来比。";
@@ -620,6 +729,37 @@ function decadeBlurb(exp) {
  * Full playable inventory: every order of magnitude from 10⁻³⁵ to 10²⁷,
  * plus every named object (several per decade where it helps a 6-year-old).
  */
+
+function decadeNameEn(exp) {
+  return "10 to the " + exp + " metres";
+}
+function decadeShownEn(exp) {
+  if (exp === 0) return "1 metre";
+  if (exp === 3) return "1 kilometre";
+  if (exp === 6) return "1,000 kilometres";
+  if (exp === -3) return "1 millimetre";
+  if (exp === -6) return "1 micrometre";
+  if (exp === -9) return "1 nanometre";
+  return "10 to the " + exp + " metres";
+}
+function decadeBlurbEn(exp) {
+  if (exp < -15) return "This layer is still very, very small. Smaller than a proton.";
+  if (exp < -10) return "This layer is still inside an atom, or just outside the nucleus.";
+  if (exp < -3) return "This layer still needs a microscope. Your eyes cannot see it.";
+  if (exp < 0) return "This layer is getting close to things your fingers can feel.";
+  if (exp <= 7) return "This layer is near the walks you do and the flights you have taken.";
+  if (exp <= 16) return "This layer is in the solar system, or just outside it.";
+  return "This layer is measured in light-years. Much farther than any flight you have taken.";
+}
+function bridgeForDecadeEn(exp) {
+  if (exp <= -3) return "Smaller than anything you have touched. The smallest thing you can feel is an ant.";
+  if (exp < 0) return "Getting close to things you can see. A little higher, and you reach ants and your finger.";
+  if (exp <= 2) return "Compare it with your height, the walks you do, the Duomo, and the Eiffel Tower.";
+  if (exp <= 4) return "Compare it with the Bund towers, the height you can climb in one go, Schlern, and Fuji.";
+  if (exp <= 7) return "Compare it with the flights you have taken from Shanghai to Tokyo and to Paris.";
+  return "Farther than the flight from Shanghai to Paris, the farthest you have flown.";
+}
+
 export function allScaleStops() {
   const named = NAMED_SCALE_STOPS.slice();
   const byId = new Set(named.map((s) => s.id));
@@ -635,11 +775,15 @@ export function allScaleStops() {
     out.push({
       id,
       name: decadeName(exp),
+      nameEn: decadeNameEn(exp),
       metres: Math.pow(10, exp),
       kind: "decade",
       shown: decadeShown(exp),
+      shownEn: decadeShownEn(exp),
       blurb: decadeBlurb(exp),
+      blurbEn: decadeBlurbEn(exp),
       correlate: bridgeForDecade(exp),
+      correlateEn: bridgeForDecadeEn(exp),
       generated: true,
       emoji: exp < 0 ? "🔹" : "🔷",
     });
@@ -660,9 +804,13 @@ export function resolveScaleStops(profile = DEFAULT_PROFILE, hikes = []) {
       copy.metres = profile.heightM;
       const assumed = Math.abs(profile.heightM - DEFAULT_PROFILE.heightM) < 1e-6;
       copy.shown = "大约 " + Number(profile.heightM).toFixed(2) + " 米" + (assumed ? "（假设）" : "");
+      copy.shownEn = "About " + Number(profile.heightM).toFixed(2) + " m" + (assumed ? " (assumed)" : "");
       copy.blurb = assumed
         ? "这是现在的身高（假设）。还没有填过真实的数。"
         : "这是现在的身高，大约 " + Number(profile.heightM).toFixed(2) + " 米。";
+      copy.blurbEn = assumed
+        ? "This is the current height (assumed). A real number has not been filled in yet."
+        : "This is the current height, about " + Number(profile.heightM).toFixed(2) + " m.";
       copy.assumption = assumed;
     }
     if (s.id === "steps" && Number.isFinite(profile.strideM)) {

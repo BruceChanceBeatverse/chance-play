@@ -1,6 +1,6 @@
 /* Offline cache. Precaches only same-origin files. No runtime requests
    to any other host — a missing file stays missing, we never "phone home". */
-const CACHE = "chance-scale-v19";
+const CACHE = "chance-scale-v20";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const PRECACHE = [
   "./js/store.js",
   "./js/audio.js",
   "./js/ui.js",
+  "./js/i18n.js",
   "./js/coasts.js",
   "./js/art.js",
   "./js/firstplay.js",

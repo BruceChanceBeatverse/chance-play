@@ -1,5 +1,5 @@
-/* Chance 的尺度与数字 — iPad-first, Chinese, no webfonts, no external assets.
-   Fonts: system PingFang / San Francisco only. */
+/* Chance 的尺度与数字 — iPad-first, Chinese and English together, no webfonts, no external assets.
+   Fonts: system PingFang / San Francisco / Noto Sans SC / YaHei only. */
 :root {
   --bg: #071018;
   --bg-2: #0b1a28;
@@ -1220,3 +1220,50 @@ button, input, textarea, select { font-family: inherit; }
   pointer-events: auto;
 }
 .zoom-mode-entry button { pointer-events: auto; }
+
+/* Bilingual together: Chinese on top, English just under, still large on iPad. */
+.bi {
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  justify-content: center;
+  gap: 0.1em;
+  line-height: 1.15;
+}
+.bi .zh { font-size: inherit; font-weight: inherit; }
+.bi .en {
+  font-size: 0.68em;
+  font-weight: 650;
+  opacity: 0.88;
+  letter-spacing: 0.01em;
+}
+.choice .bi, .btn .bi, .pill .bi, .mode-tile .bi, .choice-tile .bi, .go .bi,
+.plane-start .bi, .icon-btn .bi, .prompt h2 .bi, .end-card h2 .bi, .end-card p .bi,
+.welcome-title .bi, .hello .bi, .tile-label .bi {
+  align-items: center;
+  text-align: center;
+}
+.title-chip { align-items: flex-start; }
+.title-chip .bi { align-items: flex-start; }
+.title-chip .sub .bi .en { font-size: 13px; }
+.stat .k .bi { align-items: flex-start; }
+.stat .k .bi .en { font-size: 12px; }
+.prompt h2 { line-height: 1.2; }
+.prompt h2 .bi .en { font-size: 0.62em; }
+.choice { min-height: calc(var(--tap) + 8px); padding-top: 8px; padding-bottom: 8px; }
+.mode-tile .label { line-height: 1.15; }
+.home-foot .time-left { max-width: 52%; text-align: right; }
+
+/* Album back arrow stays reachable while the bag scrolls. */
+.cards-page .cards-nav {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 14px;
+  background: linear-gradient(180deg, rgba(7,16,24,0.96), rgba(7,16,24,0.88) 70%, rgba(7,16,24,0));
+}
+.cards-page .cards-nav .icon-btn { flex: 0 0 auto; }
+

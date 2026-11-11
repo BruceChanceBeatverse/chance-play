@@ -2,6 +2,7 @@ import { store } from "./store.js";
 import { unlockAudio, talk, sfx, playParentTask } from "./audio.js";
 import { el, screen, modeGlyph, starfield, secretParentHotspot, toast } from "./ui.js";
 import { MODE_META, WEEKDAY_THEME, TASK_BANK } from "./data.js";
+import { bi, UI, levelCopy, homeFooterCopy } from "./i18n.js";
 
 export function renderHome(app, go) {
   store.ensureToday();
@@ -11,20 +12,20 @@ export function renderHome(app, go) {
   const s = screen();
   const sky = el("canvas", { class: "home-sky fill", "aria-hidden": "true" });
   const ui = el("div", { class: "home-ui" });
-  const hello = el("div", { class: "hello", html: '你好，<em>Chance</em>' });
-  const sub = el("div", { class: "hello-sub" }, theme.title);
+  const hello = el("div", { class: "hello" }, bi({ zh: "你好，", en: "Hello, " }), el("em", {}, "Chance"));
+  const sub = el("div", { class: "hello-sub" }, bi(theme.title, theme.titleEn));
   ui.append(hello, sub);
 
   const todayTask = pickTodayTask(day, st);
   const banner = todayTaskBanner(todayTask);
   const todayCard = el("div", { class: "today-card" },
     el("div", {},
-      el("div", { class: "big" }, banner.zh),
-      st.parentReplies.length ? el("div", { style: { color: "var(--mint)", marginTop: "6px" } }, "爸爸回过你一句") : null,
+      el("div", { class: "big" }, bi(banner.zh, banner.en)),
+      st.parentReplies.length ? el("div", { style: { color: "var(--mint)", marginTop: "6px" } }, bi("爸爸回过你一句", "Dad sent you a reply")) : null,
     ),
     banner.showStart
-      ? el("button", { class: "go", onClick: () => startToday(go, todayTask) }, "开始")
-      : el("div", { class: "hello-sub", style: { marginTop: "8px" } }, "想去哪一站，就点下面。"),
+      ? el("button", { class: "go", onClick: () => startToday(go, todayTask) }, bi("开始", "Start"))
+      : el("div", { class: "hello-sub", style: { marginTop: "8px" } }, bi("想去哪一站，就点下面。", "Pick a stop below.")),
   );
   ui.append(todayCard);
 
@@ -36,7 +37,7 @@ export function renderHome(app, go) {
       onClick: () => {
         unlockAudio(); sfx.tap();
         if (locked) {
-          const msg = "这张地图还没打开。先在飞行地图和速度大比拼里玩到第三级。也可以先去尺度之旅，一路能走到宇宙。";
+          const msg = { zh: "这张地图还没打开。先走到月亮或太阳，或走完整条尺度之旅。", en: "This map is not open yet. Walk to the Moon or the Sun, or finish the scale journey." };
           talk(msg);
           toast(msg, 4200);
           showLockExplain(s, msg);
@@ -46,8 +47,8 @@ export function renderHome(app, go) {
       },
     },
       el("div", { class: "glyph" }, modeGlyph(m.id)),
-      el("div", { class: "label" }, m.name),
-      el("div", { class: "lvl" }, "第 " + (st.levels[m.id] || 1) + " 级"),
+      el("div", { class: "label" }, bi(m.name, m.nameEn)),
+      el("div", { class: "lvl" }, levelCopy(st.levels[m.id] || 1)),
     );
     if (locked) tile.append(el("div", { class: "lock-badge" }, "🔒"));
     grid.append(tile);
@@ -55,8 +56,8 @@ export function renderHome(app, go) {
   ui.append(grid);
 
   const foot = el("div", { class: "home-foot" },
-    el("button", { class: "pill", onClick: () => go("cards") }, "🃏 我的世界卡  " + st.cards.length),
-    el("div", { class: "time-left" }, "慢慢玩，走完尺度之旅"),
+    el("button", { class: "pill", onClick: () => go("cards") }, "🃏 ", UI.myCards, "  " + st.cards.length),
+    el("div", { class: "time-left" }, homeFooterCopy(st)),
   );
   ui.append(foot);
 
@@ -102,9 +103,9 @@ export function pickTodayTask(day, st) {
 /** Once today's prompt has been answered, do not keep re-asking it on the home banner. */
 export function todayTaskBanner(task) {
   if (task && task.done) {
-    return { zh: task.zh, showStart: false, done: true };
+    return { zh: task.zh, en: task.en || "", showStart: false, done: true };
   }
-  return { zh: (task && task.zh) || "", showStart: true, done: false };
+  return { zh: (task && task.zh) || "", en: (task && task.en) || "", showStart: true, done: false };
 }
 
 export function todayModeArg(task) {
@@ -139,9 +140,9 @@ function startToday(go, task) {
 function showLockExplain(host, msg) {
   host.querySelectorAll(".lock-explain").forEach((n) => n.remove());
   const box = el("div", { class: "lock-explain" },
-    el("h2", { text: "这张地图还没打开" }),
-    el("p", { text: msg }),
-    el("button", { class: "choice ok", onClick: () => box.remove() }, "好"),
+    el("h2", {}, UI.lockedMap),
+    el("p", {}, msg),
+    el("button", { class: "choice ok", onClick: () => box.remove() }, UI.ok),
   );
   host.append(box);
 }

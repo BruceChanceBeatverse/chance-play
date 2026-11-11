@@ -1,6 +1,7 @@
 import { store } from "./store.js";
 import { talk, unlockAudio, sfx, stopTalk } from "./audio.js";
 import { el, screen, toast, fitCanvas, bindCardFlip, cardFacePair } from "./ui.js";
+import { bi, UI } from "./i18n.js";
 import { fillSky, drawSoftClouds, paintCardArt } from "./art.js";
 import { TOMORROW_QUESTIONS, SESSION_MINUTES, SESSION_WINDDOWN_MIN } from "./data.js";
 
@@ -111,15 +112,17 @@ export function renderCards(app, go) {
   s.classList.add("cards-page");
   const canvas = el("canvas", { class: "fill", "aria-hidden": "true" });
   const ui = el("div", { class: "cards-ui" },
-    el("button", { class: "icon-btn", onClick: () => go("home"), style: { marginBottom: "12px" } }, "←"),
-    el("h1", { text: "我的世界卡" }),
-    el("p", { text: "玩的时候偶尔会掉下来。不是积分，也不是打卡奖励。" }),
+    el("div", { class: "cards-nav" },
+      el("button", { class: "icon-btn", onClick: () => go("home"), "aria-label": "返回 / Back" }, "←"),
+    ),
+    el("h1", {}, UI.myCards),
+    el("p", {}, { zh: "玩的时候偶尔会掉下来。不是积分，也不是打卡奖励。", en: "They drop now and then as you play. They are not points, and not a punch-card prize." }),
     el("div", { class: "bag", id: "bag" }),
   );
   s.append(canvas, ui);
   const bag = ui.querySelector("#bag");
   const cards = store.get().cards;
-  if (!cards.length) bag.append(el("p", { text: "还没有卡片。去飞一趟，也许会掉下来。" }));
+  if (!cards.length) bag.append(el("p", {}, { zh: "还没有卡片。去飞一趟，也许会掉下来。", en: "No cards yet. Fly a route, and one might drop." }));
   for (const c of cards) {
     const { art, front, back, template } = cardFacePair(c);
     const card = el("div", { class: "card-drop flippable", style: { width: "100%", aspectRatio: "4/3", animation: "none" } },

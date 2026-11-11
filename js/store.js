@@ -3,6 +3,7 @@
  * Nothing is uploaded. A manual JSON export/import is the only backup.
  */
 import { DEFAULT_PROFILE, DEFAULT_TRIPS, DEFAULT_RACERS, SAMPLE_HIKES, MODE_META, resolveCard } from "./data.js";
+import { cosmosUnlockFromScale } from "./i18n.js";
 
 const KEY = "chance-scale-v1";
 const listeners = new Set();
@@ -31,10 +32,12 @@ function fresh() {
     parentTasks: [], // {id, taskId, dataUrl} recorded over bank items
     sessions: [], // {date, start, minutes, modes, endedBy}
     firstPlayDone: false,
-    settings: { bilingual: false, voiceOn: true, reducedMotion: false },
+    settings: { bilingual: true, voiceOn: true, reducedMotion: false },
     tomorrowQuestionId: "q1",
     lastTomorrowAt: null,
     cosmosIntroSeen: false,
+    scaleVisited: [],
+    scaleJourneyComplete: false,
     todayStartedAt: null,
     todayDate: null,
     todayMinutes: 0,
@@ -115,6 +118,10 @@ function load() {
       merged.cards = merged.cards.map((c) => resolveCard(c) || c);
     }
     if (!Array.isArray(merged.todayCompletedTasks)) merged.todayCompletedTasks = [];
+    if (!Array.isArray(merged.scaleVisited)) merged.scaleVisited = [];
+    if (typeof merged.scaleJourneyComplete !== "boolean") merged.scaleJourneyComplete = false;
+    // Child default is both languages together (voice + labels).
+    if (merged.settings && merged.settings.bilingual == null) merged.settings.bilingual = true;
     return merged;
   } catch {
     return fresh();
@@ -251,7 +258,25 @@ export const store = {
   },
   level(mode) { return state.levels[mode] || 1; },
   cosmosUnlocked() {
-    return (state.levels.flight || 1) >= 3 && (state.levels.race || 1) >= 3;
+    return cosmosUnlockFromScale(state);
+  },
+  markScaleStop(id) {
+    if (!id) return false;
+    const prev = Array.isArray(state.scaleVisited) ? state.scaleVisited : [];
+    if (prev.includes(id)) return false;
+    const scaleVisited = [...prev, id];
+    const scaleJourneyComplete = state.scaleJourneyComplete || id === "universe";
+    state = { ...state, scaleVisited, scaleJourneyComplete };
+    persist();
+    return true;
+  },
+  markScaleJourneyComplete() {
+    const scaleVisited = Array.isArray(state.scaleVisited) ? state.scaleVisited.slice() : [];
+    if (!scaleVisited.includes("universe")) scaleVisited.push("universe");
+    if (state.scaleJourneyComplete && scaleVisited.length === (state.scaleVisited || []).length) return false;
+    state = { ...state, scaleVisited, scaleJourneyComplete: true };
+    persist();
+    return true;
   },
   addCard(template) {
     if (state.cards.some((c) => c.id === template.id)) return false;

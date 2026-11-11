@@ -9,9 +9,13 @@ export function comparePairsForLevel(level) {
   const paris = routeDistanceKm("PVG", "CDG");
   const racers = store.get().racers;
   const hikes = store.get().hikes;
-  const sheshan = hikes.find((h) => h.id === "sheshan")?.peakM || 99;
-  const huang = hikes.find((h) => h.id === "huangshan")?.peakM || 1864;
   const fuji = hikes.find((h) => h.id === "fuji")?.peakM || 3776;
+  const schlern = 2563;
+  const everest = 8849;
+  const eiffel = 330;
+  const pearl = 468;
+  const duomo = 108.5;
+  const gain = 900;
   const walk = racers.find((r) => r.id === "walk");
   const bike = racers.find((r) => r.id === "bike");
   const car = racers.find((r) => r.id === "car");
@@ -21,14 +25,14 @@ export function comparePairsForLevel(level) {
   const byLevel = {
     1: [
       { kind: "更快", a: { name: bike.name, emoji: bike.emoji, value: bike.kmh, unit: " 公里/小时", assumed: true }, b: { name: car.name, emoji: car.emoji, value: car.kmh, unit: " 公里/小时", assumed: true } },
-      { kind: "更高", a: { name: "佘山", emoji: "⛰️", value: sheshan, unit: " 米" }, b: { name: "黄山", emoji: "🏔️", value: huang, unit: " 米" } },
+      { kind: "更高", a: { name: "埃菲尔铁塔", nameEn: "Eiffel Tower", emoji: "🗼", value: eiffel, unit: " 米" }, b: { name: "东方明珠", nameEn: "Oriental Pearl", emoji: "🔮", value: pearl, unit: " 米" } },
     ],
     2: [
       { kind: "更长", a: { name: "去东京", emoji: "✈️", value: tokyo, unit: " 公里" }, b: { name: "去巴黎", emoji: "✈️", value: paris, unit: " 公里" } },
       { kind: "更快", a: { name: hsr.name, emoji: hsr.emoji, value: hsr.kmh, unit: " 公里/小时", assumed: true }, b: { name: plane.name, emoji: plane.emoji, value: plane.kmh, unit: " 公里/小时", assumed: true } },
     ],
     3: [
-      { kind: "更高", a: { name: "黄山", emoji: "🏔️", value: huang, unit: " 米" }, b: { name: "富士山", emoji: "🗻", value: fuji, unit: " 米" } },
+      { kind: "更高", a: { name: "斯西利亚尔", nameEn: "Schlern", emoji: "🏞️", value: schlern, unit: " 米" }, b: { name: "富士山", nameEn: "Mount Fuji", emoji: "🗻", value: fuji, unit: " 米" } },
     ],
     4: [
       { kind: "更快", a: { name: car.name, emoji: car.emoji, value: car.kmh, unit: " 公里/小时", assumed: true }, b: { name: hsr.name, emoji: hsr.emoji, value: hsr.kmh, unit: " 公里/小时", assumed: true } },
@@ -43,7 +47,9 @@ export function comparePairsForLevel(level) {
   if (bike && plane) {
     byLevel[2].push({ kind: "更快", a: { name: bike.name, emoji: bike.emoji, value: bike.kmh, unit: " 公里/小时", assumed: true }, b: { name: plane.name, emoji: plane.emoji, value: plane.kmh, unit: " 公里/小时", assumed: true } });
   }
-  byLevel[3].push({ kind: "更高", a: { name: "佘山", emoji: "⛰️", value: sheshan, unit: " 米" }, b: { name: "富士山", emoji: "🗻", value: fuji, unit: " 米" } });
+  byLevel[1].push({ kind: "更高", a: { name: "米兰大教堂", nameEn: "Milan Duomo", emoji: "⛪", value: duomo, unit: " 米" }, b: { name: "埃菲尔铁塔", nameEn: "Eiffel Tower", emoji: "🗼", value: eiffel, unit: " 米" } });
+  byLevel[3].push({ kind: "更高", a: { name: "你一次能爬的高度", nameEn: "The height you can climb", emoji: "🥾", value: gain, unit: " 米" }, b: { name: "富士山", nameEn: "Mount Fuji", emoji: "🗻", value: fuji, unit: " 米" } });
+  byLevel[3].push({ kind: "更高", a: { name: "富士山", nameEn: "Mount Fuji", emoji: "🗻", value: fuji, unit: " 米" }, b: { name: "珠穆朗玛峰", nameEn: "Everest", emoji: "🏔️", value: everest, unit: " 米" } });
   const lv = Math.min(5, Math.max(1, level));
   // Higher levels may also reuse earlier pairs, so "再来一对" has something new to show.
   const list = [];

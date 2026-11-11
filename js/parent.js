@@ -23,7 +23,7 @@ export function renderParent(app, go) {
   wrap.append(el("h2", { text: "声音和语言" }));
   const set = el("div", { class: "grid-2" });
   set.append(toggle("打开语音", st.settings.voiceOn, (v) => store.patch({ settings: { ...store.get().settings, voiceOn: v } })));
-  set.append(toggle("中英双语旁白", st.settings.bilingual, (v) => store.patch({ settings: { ...store.get().settings, bilingual: v } })));
+  set.append(toggle("中英双语朗读 / Speak Chinese and English", st.settings.bilingual, (v) => store.patch({ settings: { ...store.get().settings, bilingual: v } })));
   wrap.append(set);
 
   // Body

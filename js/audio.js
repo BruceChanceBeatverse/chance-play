@@ -80,12 +80,16 @@ export function stopTalk() {
 }
 
 export function talk(zh, en) {
+  if (zh && typeof zh === "object" && !Array.isArray(zh) && (zh.zh != null || zh.en != null)) {
+    en = zh.en;
+    zh = zh.zh;
+  }
   const s = store.get().settings;
   if (!s.voiceOn) return Promise.resolve();
   stopTalk();
   const lines = [];
   if (zh) lines.push({ text: zh, lang: "zh-CN" });
-  if (s.bilingual && en) lines.push({ text: en, lang: "en-US" });
+  if ((s.bilingual !== false) && en) lines.push({ text: en, lang: "en-US" });
   if (!lines.length) return Promise.resolve();
   return new Promise((resolve) => {
     const speakNext = (i) => {

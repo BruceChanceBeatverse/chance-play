@@ -10,8 +10,23 @@ import {
 } from "../geo.js";
 import { drawWater, drawLand, drawGrid, drawCityGlow, drawRoute, drawPlane, drawSoftClouds, drawGlobe, drawMoon, drawSeaCloseup } from "../art.js";
 import { shouldShowFlightPicker, resolveTrip, renderTripPicker, switchRouteButton, flightAssumptionCopy } from "../pickers.js";
+import { clampSeekToBeats, bi, UI } from "../i18n.js";
 
 const CRUISE_KMH = 850; // ASSUMPTION: typical jet cruise, same as the plane racer.
+
+export function flightQuizBeats({ askArmed, asked, arrived }) {
+  const beats = [];
+  if (askArmed === "half" && !asked) beats.push({ id: "half", at: 0.48, done: false });
+  if (askArmed === "temp" && !asked) beats.push({ id: "temp", at: 0.2, done: false });
+  if (askArmed === "quarters" && !asked) beats.push({ id: "quarters", at: 0.24, done: false });
+  if (!arrived) beats.push({ id: "arrive", at: 0.995, done: false });
+  return beats;
+}
+
+export function clampFlightSeek(desired, opts) {
+  return clampSeekToBeats(desired, flightQuizBeats(opts));
+}
+
 
 /** Watchable play duration for the full route (not real flight time). */
 export const FLIGHT_PLAY_SECONDS = 28;
@@ -82,16 +97,16 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
     renderFlight(app, { goHome, onDone, goZoom });
   });
   const bar = topbar({
-    title: trip.label,
-    sub: assume.sub,
+    title: { zh: trip.label, en: trip.labelEn || trip.label },
+    sub: { zh: assume.sub, en: assume.subEn || "Cruise 850 km/h (assumed)" },
     onBack: goHome,
     extra: switchBtn,
   });
   const board = hud([
-    { label: "已经飞了", value: "0 公里", tone: "cyan" },
-    { label: assume.remainLabel, value: formatHours(km / CRUISE_KMH), tone: "" },
-    { label: assume.altLabel, value: "0.0 公里", tone: "mint" },
-    { label: "外面气温", value: formatTemp(isaTempC(0)), tone: "coral" },
+    { label: "已经飞了", labelEn: "Distance flown", value: "0 公里", tone: "cyan" },
+    { label: assume.remainLabel, labelEn: assume.remainLabelEn || "Time left", value: formatHours(km / CRUISE_KMH), tone: "" },
+    { label: assume.altLabel, labelEn: assume.altLabelEn || "Height (assumed)", value: "0.0 公里", tone: "mint" },
+    { label: "外面气温", labelEn: "Outside temp", value: formatTemp(isaTempC(0)), tone: "coral" },
   ]);
 
   s.append(canvas, bar, board);
@@ -128,7 +143,7 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
   }
 
   let raf = 0, running = true, lastTs = 0;
-  const hint = playHint("飞机会自己飞。你也可以用手拉它。");
+  const hint = playHint({ zh: "飞机会自己飞。你也可以用手拉它。", en: "The plane will fly by itself. You can also drag it." });
   s.append(hint);
   const draw = (now) => {
     if (!running) return;
@@ -187,12 +202,12 @@ export function renderFlight(app, { goHome, tripId, onDone, goZoom, firstPlay = 
       if (!flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) return;
       dragging = true;
       const { width: w, height: h } = canvas.getBoundingClientRect();
-      progress = nearestProgress(pt.x, pt.y, w, h);
+      progress = clampFlightSeek(nearestProgress(pt.x, pt.y, w, h), { askArmed, asked, arrived }).pos;
     },
     move(pt) {
       if (!dragging || !flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) return;
       const { width: w, height: h } = canvas.getBoundingClientRect();
-      progress = nearestProgress(pt.x, pt.y, w, h);
+      progress = clampFlightSeek(nearestProgress(pt.x, pt.y, w, h), { askArmed, asked, arrived }).pos;
       maybeAsk();
     },
     up() { dragging = false; if (flightPointerShouldSeek({ frozen, revealOpen: isRevealOpen(), arrived })) maybeAsk(); },
